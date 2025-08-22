@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "react-grid-layout/css/styles.css";
+@import "react-resizable/css/styles.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -119,4 +121,75 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ドラッグハンドルのスタイル */
+.drag-handle {
+  cursor: move; /* カーソルを移動アイコンに */
+  width: 100%;
+  height: 28px; /* ハンドルの高さ */
+  background-color: #374151; /* ハンドルの背景色 (gray-700) */
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  font-size: 14px;
+  font-weight: bold;
+  color: #d1d5db; /* 文字色 (gray-300) */
+}
+
+/* ドラッグ/リサイズ中にグリッド線を表示するためのスタイル */
+.react-grid-layout {
+  position: relative;
+  transition: height 200ms ease;
+}
+
+/* ドラッグ中にグリッド線を表示 */
+.react-grid-layout.dragging {
+  /* グリッドのサイズをrowHeightとcolsから計算した値に合わせる */
+  /* この値はDashboard.tsxのcolsとrowHeightに依存します */
+  background-size: calc(100% / 24) 50px;
+  background-image: linear-gradient(to right, #4b5563 1px, transparent 1px),
+    linear-gradient(to bottom, #4b5563 1px, transparent 1px);
+}
+
+/* ドラッグ時のプレースホルダーの設定 */
+.react-grid-placeholder {
+  background: #4f46e5 !important;
+  border-radius: 8px;
+  opacity: 0.4;
+  transition-duration: 100ms;
+}
+
+/* サイズ変更用のハンドルの設定 */
+.react-resizable-handle {
+  /* ハンドル自体は非表示にする */
+  opacity: 0;
+  transform: translate(50%, 50%);
+}
+
+/* ハンドルの周りに透明なクリックエリアを設ける */
+.react-resizable-handle::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  bottom: -5px;
+  left: -5px;
+}
+
+react-resizable-handle-n,
+.react-resizable-handle-s {
+  cursor: ns-resize;
+}
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  cursor: ew-resize;
+}
+.react-resizable-handle-ne,
+.react-resizable-handle-sw {
+  cursor: nesw-resize;
+}
+.react-resizable-handle-nw,
+.react-resizable-handle-se {
+  cursor: nwse-resize;
 }

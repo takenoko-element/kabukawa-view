@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  # バックエンドAPIサービス
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app # ソースコードの変更を即時反映させる
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # フロントエンドサービス
+  front:
+    build:
+      context: ./front
+      dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: sync
+          path: ./app
+          target: /app/app
+        - action: rebuild
+          path: ./package.json
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./front:/app
+      - /app/node_modules # node_modulesはホストと同期しないようにする
+      - /app/.next
+    restart: always
+    depends_on:
+      - api # apiサービスが起動してからfrontが起動する
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+    command: npm run dev

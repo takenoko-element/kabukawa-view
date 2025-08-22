@@ -8,39 +8,60 @@ type Props = {
 };
 
 // TradingViewウィジェットを描画するコンポーネント
-// React.memo を使って、propsが変更されない限り再描画しないようにする
 const ChartWidget: React.FC<Props> = memo(({ symbol, interval }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  // 安定した一意なIDを生成する
+  const widgetId = `tradingview_${symbol.replace(/[:]/g, "_")}`;
 
   useEffect(() => {
-    if (containerRef.current && !containerRef.current.querySelector("iframe")) {
-      const script = document.createElement("script");
-      script.src = "https://s3.tradingview.com/tv.js";
-      script.async = true;
-      script.onload = () => {
-        if (window.TradingView) {
-          new window.TradingView.widget({
-            autosize: true,
-            symbol: symbol,
-            interval: interval, // 'D', '60', '240' など
-            timezone: "Asia/Tokyo",
-            theme: "dark",
-            style: "1",
-            locale: "ja",
-            enable_publishing: false,
-            allow_symbol_change: true,
-            container_id: containerRef.current!.id,
-          });
-        }
-      };
-      containerRef.current.appendChild(script);
+    // containerRef.current が存在することを確認
+    if (!containerRef.current) {
+      return;
     }
-  }, [symbol, interval]); // symbolやintervalが変わったときだけ再生成
 
-  // container_idに一意なIDを付与する
+    // 毎回コンテナをクリアして、新しいウィジェットを描画する
+    containerRef.current.innerHTML = "";
+
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/tv.js";
+    script.type = "text/javascript";
+    script.async = true;
+
+    script.onload = () => {
+      // スクリプト読み込み後に window.TradingView が存在するか、
+      // そしてコンテナがまだ存在するかを再度確認
+      if (window.TradingView && containerRef.current) {
+        new window.TradingView.widget({
+          autosize: true,
+          symbol: symbol,
+          interval: interval,
+          timezone: "Asia/Tokyo",
+          theme: "dark",
+          style: "1",
+          locale: "ja",
+          enable_publishing: false,
+          allow_symbol_change: true,
+          container_id: widgetId, // 安定したIDを使用
+          // 出来高を非表示にする
+          hide_volume: true,
+          // チャート上部のツールバーを非表示にする
+          hide_top_toolbar: true,
+          // 左側の描画ツールバーを非表示にする
+          // hide_side_toolbar: true,
+          // チャート左上の銘柄情報(OHLCなど)を非表示にする
+          hide_legend: true,
+          // 下部の日付範囲セレクターを非表示にする
+          // withdateranges: false,
+        });
+      }
+    };
+
+    containerRef.current.appendChild(script);
+  }, [symbol, interval, widgetId]); // 依存配列にwidgetIdを追加
+
   return (
     <div
-      id={`tradingview_${symbol}_${Math.random()}`}
+      id={widgetId} // 安定したIDを使用
       ref={containerRef}
       className="w-full h-full"
     />

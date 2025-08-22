@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
-# FastAPIインスタンスを作成
 app = FastAPI()
 
 # CORS設定（Next.jsからのアクセスを許可）
@@ -29,23 +28,24 @@ class ChartItem(BaseModel):
 # { "default": [ChartItem, ...] } のような形式で保存
 db: Dict[str, List[ChartItem]] = {
     "default_layout": [
-        {"i": "a", "x": 0, "y": 0, "w": 4, "h": 3, "symbol": "NIKKEI225"},
-        {"i": "b", "x": 4, "y": 0, "w": 4, "h": 3, "symbol": "OANDA:USDJPY"},
-        {"i": "c", "x": 8, "y": 0, "w": 4, "h": 3, "symbol": "NASDAQ:AAPL"},
+        {"i": "a", "x": 0, "y": 0, "w": 8, "h": 6, "symbol": "NIKKEI225"},
+        {"i": "b", "x": 8, "y": 0, "w": 8, "h": 6, "symbol": "OANDA:USDJPY"},
+        {"i": "c", "x": 16, "y": 0, "w": 8, "h": 6, "symbol": "NASDAQ:AAPL"},
     ]
 }
 
-@get("/api/layout")
+@app.get("/api/layout")
 def get_layout():
     """保存されたレイアウト設定を取得する"""
     return db.get("default_layout", [])
 
-@post("/api/layout")
+@app.post("/api/layout")
 def save_layout(layout: List[ChartItem]):
     """新しいレイアウト設定を保存する"""
     print(f"Received layout: {layout}")
     db["default_layout"] = layout
     return {"message": "Layout saved successfully"}
+
 
 # 仮想環境の起動方法：
 # .\venv\Scripts\Activate

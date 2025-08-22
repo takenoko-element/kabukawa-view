@@ -6,7 +6,7 @@ import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import ChartWidget from "./ChartWidget";
-import { Button } from "@/components/ui/button"; // shadcn/ui
+import { Button } from "@/components/ui/button";
 
 // グリッドレイアウトの型定義
 type LayoutItem = {
@@ -38,73 +38,108 @@ export default function Dashboard() {
   const [items, setItems] = useState<LayoutItem[]>([]);
   const [interval, setInterval] = useState("D"); // 時間足の状態 (D: 日足)
 
-  // 1. TanStack Queryでバックエンドからレイアウト情報を取得
+  // ドラッグ/リサイズ中かどうかの状態を管理
+  const [isDragging, setIsDragging] = useState(false);
+
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
     queryFn: fetchLayout,
   });
 
-  // 2. 取得したデータをstateにセット
   useEffect(() => {
     if (initialLayout) {
       setItems(initialLayout);
     }
   }, [initialLayout]);
 
-  // 3. TanStack Queryでレイアウト情報をバックエンドに保存する関数を定義
   const mutation = useMutation({
     mutationFn: saveLayout,
     onSuccess: () => {
-      // 保存が成功したら、キャッシュを更新するなどの処理も可能
       queryClient.invalidateQueries({ queryKey: ["layout"] });
       console.log("Layout saved!");
     },
   });
 
-  // 4. グリッドのレイアウトが変更されたときに呼ばれる関数
   const handleLayoutChange = (newLayout: ReactGridLayout.Layout[]) => {
-    // 現在の銘柄情報と新しい位置情報をマージする
     const updatedItems = newLayout.map((layoutItem) => {
       const existingItem = items.find((item) => item.i === layoutItem.i);
       return {
         ...layoutItem,
-        symbol: existingItem ? existingItem.symbol : "",
+        symbol: existingItem ? existingItem.symbol : "TSE:9984", // Fallback symbol
       };
     });
     setItems(updatedItems);
-    // mutation.mutate(updatedItems); // ドラッグのたびに保存すると重いので、ボタンで保存
   };
 
   const handleSaveLayout = () => {
     mutation.mutate(items);
   };
 
-  if (isLoading) return <div>Loading...</div>;
+  if (isLoading) return <div className="text-center p-10">Loading...</div>;
 
   return (
     <div>
-      <div className="p-4 space-x-2">
-        {/* 時間足一括変更ボタン */}
-        <Button onClick={() => setInterval("60")}>1時間</Button>
-        <Button onClick={() => setInterval("240")}>4時間</Button>
-        <Button onClick={() => setInterval("D")}>日足</Button>
-        <Button onClick={() => setInterval("W")}>週足</Button>
-        <Button onClick={handleSaveLayout} variant="outline">
+      <div className="p-4 flex items-center gap-2">
+        {["15", "30", "60", "240", "D", "W"].map((iv) => (
+          <Button
+            key={iv}
+            onClick={() => setInterval(iv)}
+            // 現在選択中の時間足と一致する場合のスタイルを追加
+            variant={interval === iv ? "default" : "secondary"}
+            className="transition-all duration-200"
+          >
+            {/* 表示用のラベルを定義 */}
+            {
+              {
+                "15": "15分",
+                "30": "30分",
+                "60": "1時間",
+                "240": "4時間",
+                D: "日足",
+                W: "週足",
+              }[iv]
+            }
+          </Button>
+        ))}
+        <div className="flex-grow" /> {/* 右寄せにするためのスペーサー */}
+        <Button
+          onClick={handleSaveLayout}
+          variant="outline"
+          className="transition-all duration-200 text-black"
+        >
           レイアウト保存
         </Button>
       </div>
 
       <ResponsiveGridLayout
-        className="layout"
-        layouts={{ lg: items.map(({ symbol, ...rest }) => rest) }} // react-grid-layoutに渡すデータからsymbolを除外
-        breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-        cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-        rowHeight={100}
+        // isDragging状態に応じてクラスを動的に追加
+        className={`layout ${isDragging ? "dragging" : ""}`}
+        layouts={{ lg: items.map(({ symbol, ...rest }) => rest) }}
+        cols={{ lg: 24, md: 20, sm: 12, xs: 8, xxs: 4 }}
+        rowHeight={50}
         onLayoutChange={handleLayoutChange}
+        draggableHandle=".drag-handle"
+        resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
+        compactType={null}
+        preventCollision={true}
+        // ドラッグ/リサイズ開始/終了時にisDragging状態を更新
+        onDragStart={() => setIsDragging(true)}
+        onDragStop={() => setIsDragging(false)}
+        onResizeStart={() => setIsDragging(true)}
+        onResizeStop={() => setIsDragging(false)}
+        // アイテム間のマージンとコンテナのパディングを0に設定
+        margin={[0, 0]}
+        containerPadding={[0, 0]}
       >
         {items.map((item) => (
-          <div key={item.i} className="bg-gray-800 rounded-lg overflow-hidden">
-            <ChartWidget symbol={item.symbol} interval={interval} />
+          <div
+            key={item.i}
+            className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg flex flex-col"
+          >
+            <div className="drag-handle">{item.symbol}</div>
+            <div className="flex-grow h-full">
+              <ChartWidget symbol={item.symbol} interval={interval} />
+            </div>
           </div>
         ))}
       </ResponsiveGridLayout>
