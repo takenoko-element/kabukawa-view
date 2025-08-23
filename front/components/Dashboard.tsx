@@ -7,7 +7,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -25,6 +24,7 @@ type LayoutItem = {
   w: number;
   h: number;
   symbol: string;
+  label: string;
 };
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -62,8 +62,11 @@ const Dashboard = () => {
   const [interval, setInterval] = useState("D");
   // ドラッグ/リサイズ中かどうかの状態を管理
   const [isDragging, setIsDragging] = useState(false);
-  // 銘柄コードを管理
-  const [newSymbol, setNewSymbol] = useState("");
+  // 選択された銘柄情報を管理
+  const [selectedSymbol, setSelectedSymbol] = useState<{
+    label: string;
+    value: string;
+  } | null>(null);
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -108,7 +111,7 @@ const Dashboard = () => {
   };
 
   const handleAddChart = () => {
-    if (!newSymbol.trim()) return;
+    if (!selectedSymbol) return;
 
     const newItem: LayoutItem = {
       // ユニークなIDを生成
@@ -120,12 +123,13 @@ const Dashboard = () => {
       // デフォルトのサイズ
       w: 8,
       h: 6,
-      // 入力された銘柄コード
-      symbol: newSymbol.toUpperCase(),
+      // 選択された銘柄の値をsymbolに、ラベルをlabelに設定
+      symbol: selectedSymbol.value,
+      label: selectedSymbol.label,
     };
 
     setItems([...items, newItem]);
-    setNewSymbol("");
+    setSelectedSymbol(null);
   };
 
   const handleRemoveChart = (itemIdToRemove: string) => {
@@ -160,7 +164,15 @@ const Dashboard = () => {
         ))}
         <div className="ml-4 flex items-center gap-2">
           {/* プルダウンメニュー */}
-          <Select onValueChange={(value) => setNewSymbol(value)}>
+          <Select
+            onValueChange={(value) => {
+              const selected = presetSymbols.find((s) => s.value === value);
+              if (selected) {
+                setSelectedSymbol(selected);
+              }
+            }}
+            value={selectedSymbol?.value ?? ""}
+          >
             <SelectTrigger className="w-[220px] bg-gray-800 border-gray-600 text-white">
               <SelectValue placeholder="一覧から選択" />
             </SelectTrigger>
@@ -172,16 +184,6 @@ const Dashboard = () => {
               ))}
             </SelectContent>
           </Select>
-          {/* 手動入力欄 */}
-          <Input
-            type="text"
-            placeholder="銘柄コード (例: TSE:9984)"
-            className="w-48 bg-gray-800 border-gray-600 text-white"
-            value={newSymbol}
-            onChange={(e) => setNewSymbol(e.target.value)}
-            // Enterキーでも追加できるようにする
-            onKeyDown={(e) => e.key === "Enter" && handleAddChart()}
-          />
           <Button onClick={handleAddChart}>追加</Button>
         </div>
         <div className="flex-grow" /> {/* 右寄せにするためのスペーサー */}
@@ -197,7 +199,7 @@ const Dashboard = () => {
       <ResponsiveGridLayout
         // isDragging状態に応じてクラスを動的に追加
         className={`layout ${isDragging ? "dragging" : ""}`}
-        layouts={{ lg: items.map(({ symbol, ...rest }) => rest) }}
+        layouts={{ lg: items.map(({ symbol, label, ...rest }) => rest) }}
         cols={{ lg: 24, md: 20, sm: 12, xs: 8, xxs: 4 }}
         rowHeight={50}
         onLayoutChange={handleLayoutChange}
@@ -220,7 +222,7 @@ const Dashboard = () => {
             className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg flex flex-col"
           >
             <div className="drag-handle flex items-center pr-2">
-              <span>{item.symbol}</span>
+              <span>{item.label}</span>
               <div className="flex-grow" />
               <button
                 onClick={() => handleRemoveChart(item.i)}
