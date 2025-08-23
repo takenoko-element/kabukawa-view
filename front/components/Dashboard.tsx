@@ -5,8 +5,17 @@ import { useState, useEffect } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import ChartWidget from "./ChartWidget";
+
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import ChartWidget from "./ChartWidget";
 
 // グリッドレイアウトの型定義
 type LayoutItem = {
@@ -33,13 +42,28 @@ const saveLayout = async (layout: LayoutData): Promise<void> => {
   await axios.post("http://localhost:8000/api/layout", layout);
 };
 
-export default function Dashboard() {
+const presetSymbols = [
+  { label: "日経平均 (Nikkei 225)", value: "NIKKEI225" },
+  { label: "TOPIX", value: "TOPIX" },
+  { label: "トヨタ自動車", value: "TRADU:7203" },
+  { label: "ソニーグループ", value: "TRADU:6758" },
+  { label: "ソフトバンクグループ", value: "TRADU:9984" },
+  { label: "S&P 500", value: "SP:SPX" },
+  { label: "NASDAQ 100", value: "NASDAQ:NDX" },
+  { label: "Apple", value: "NASDAQ:AAPL" },
+  { label: "Microsoft", value: "NASDAQ:MSFT" },
+  { label: "ドル/円 (USD/JPY)", value: "FX:USDJPY" },
+  { label: "ユーロ/ドル (EUR/USD)", value: "FX:EURUSD" },
+];
+
+const Dashboard = () => {
   const queryClient = useQueryClient();
   const [items, setItems] = useState<LayoutItem[]>([]);
-  const [interval, setInterval] = useState("D"); // 時間足の状態 (D: 日足)
-
+  const [interval, setInterval] = useState("D");
   // ドラッグ/リサイズ中かどうかの状態を管理
   const [isDragging, setIsDragging] = useState(false);
+  // 銘柄コードを管理
+  const [newSymbol, setNewSymbol] = useState("");
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -61,18 +85,51 @@ export default function Dashboard() {
   });
 
   const handleLayoutChange = (newLayout: ReactGridLayout.Layout[]) => {
-    const updatedItems = newLayout.map((layoutItem) => {
-      const existingItem = items.find((item) => item.i === layoutItem.i);
-      return {
-        ...layoutItem,
-        symbol: existingItem ? existingItem.symbol : "TSE:9984", // Fallback symbol
-      };
+    setItems((currentItems) => {
+      const layoutMap = new Map(newLayout.map((l) => [l.i, l]));
+      return currentItems.map((item) => {
+        const layoutUpdate = layoutMap.get(item.i);
+        if (layoutUpdate) {
+          return {
+            ...item,
+            x: layoutUpdate.x,
+            y: layoutUpdate.y,
+            w: layoutUpdate.w,
+            h: layoutUpdate.h,
+          };
+        }
+        return item;
+      });
     });
-    setItems(updatedItems);
   };
 
   const handleSaveLayout = () => {
     mutation.mutate(items);
+  };
+
+  const handleAddChart = () => {
+    if (!newSymbol.trim()) return;
+
+    const newItem: LayoutItem = {
+      // ユニークなIDを生成
+      i: `item_${new Date().getTime()}`,
+      // 新しいチャートは左下に配置する
+      // y: Infinity を指定すると、グリッドの最下部に自動で配置される
+      x: 0,
+      y: Infinity,
+      // デフォルトのサイズ
+      w: 8,
+      h: 6,
+      // 入力された銘柄コード
+      symbol: newSymbol.toUpperCase(),
+    };
+
+    setItems([...items, newItem]);
+    setNewSymbol("");
+  };
+
+  const handleRemoveChart = (itemIdToRemove: string) => {
+    setItems(items.filter((item) => item.i !== itemIdToRemove));
   };
 
   if (isLoading) return <div className="text-center p-10">Loading...</div>;
@@ -101,6 +158,32 @@ export default function Dashboard() {
             }
           </Button>
         ))}
+        <div className="ml-4 flex items-center gap-2">
+          {/* プルダウンメニュー */}
+          <Select onValueChange={(value) => setNewSymbol(value)}>
+            <SelectTrigger className="w-[220px] bg-gray-800 border-gray-600 text-white">
+              <SelectValue placeholder="一覧から選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {presetSymbols.map((symbol) => (
+                <SelectItem key={symbol.value} value={symbol.value}>
+                  {symbol.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {/* 手動入力欄 */}
+          <Input
+            type="text"
+            placeholder="銘柄コード (例: TSE:9984)"
+            className="w-48 bg-gray-800 border-gray-600 text-white"
+            value={newSymbol}
+            onChange={(e) => setNewSymbol(e.target.value)}
+            // Enterキーでも追加できるようにする
+            onKeyDown={(e) => e.key === "Enter" && handleAddChart()}
+          />
+          <Button onClick={handleAddChart}>追加</Button>
+        </div>
         <div className="flex-grow" /> {/* 右寄せにするためのスペーサー */}
         <Button
           onClick={handleSaveLayout}
@@ -136,7 +219,19 @@ export default function Dashboard() {
             key={item.i}
             className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg flex flex-col"
           >
-            <div className="drag-handle">{item.symbol}</div>
+            <div className="drag-handle flex items-center pr-2">
+              <span>{item.symbol}</span>
+              <div className="flex-grow" />
+              <button
+                onClick={() => handleRemoveChart(item.i)}
+                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                title="チャートを削除"
+              >
+                <span className="text-xl font-bold -translate-y-px">
+                  &times;
+                </span>
+              </button>
+            </div>
             <div className="flex-grow h-full">
               <ChartWidget symbol={item.symbol} interval={interval} />
             </div>
@@ -145,4 +240,6 @@ export default function Dashboard() {
       </ResponsiveGridLayout>
     </div>
   );
-}
+};
+
+export default Dashboard;

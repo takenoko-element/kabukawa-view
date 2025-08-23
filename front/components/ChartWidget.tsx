@@ -49,7 +49,7 @@ const ChartWidget: React.FC<Props> = memo(({ symbol, interval }) => {
           // 左側の描画ツールバーを非表示にする
           // hide_side_toolbar: true,
           // チャート左上の銘柄情報(OHLCなど)を非表示にする
-          hide_legend: true,
+          // hide_legend: true,
           // 下部の日付範囲セレクターを非表示にする
           // withdateranges: false,
         });
