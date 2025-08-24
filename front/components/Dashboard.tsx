@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTheme } from "next-themes";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { ChartType } from "@/types";
 import ChartWidget from "./ChartWidget";
+import ThemeToggleButton from "./ThemeToggleButton";
 
 // グリッドレイアウトの型定義
 type LayoutItem = {
@@ -59,6 +61,7 @@ const presetSymbols = [
 ];
 
 const Dashboard = () => {
+  const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
   const [items, setItems] = useState<LayoutItem[]>([]);
   const [interval, setInterval] = useState("D");
@@ -155,7 +158,8 @@ const Dashboard = () => {
             );
           }}
         >
-          <SelectTrigger className="w-[150px] bg-gray-800 border-gray-600 text-white">
+          <SelectTrigger className="w-[150px]">
+            {" "}
             <SelectValue placeholder="スタイルを選択" />
           </SelectTrigger>
           <SelectContent>
@@ -195,7 +199,7 @@ const Dashboard = () => {
             }}
             value={selectedSymbol?.value ?? ""}
           >
-            <SelectTrigger className="w-[220px] bg-gray-800 border-gray-600 text-white">
+            <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="一覧から選択" />
             </SelectTrigger>
             <SelectContent>
@@ -212,10 +216,11 @@ const Dashboard = () => {
         <Button
           onClick={handleSaveLayout}
           variant="outline"
-          className="transition-all duration-200 text-black"
+          className="transition-all duration-200"
         >
           レイアウト保存
         </Button>
+        <ThemeToggleButton />
       </div>
 
       <ResponsiveGridLayout
@@ -243,14 +248,14 @@ const Dashboard = () => {
         {items.map((item) => (
           <div
             key={item.i}
-            className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 shadow-lg flex flex-col"
+            className="bg-card rounded-lg overflow-hidden border border-border shadow-lg flex flex-col"
           >
-            <div className="drag-handle flex items-center pr-2">
+            <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">
               <span>{item.label}</span>
               <div className="flex-grow" />
               <button
                 onClick={() => handleRemoveChart(item.i)}
-                className="w-6 h-6 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-600 hover:text-white transition-colors"
+                className="w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                 title="チャートを削除"
               >
                 <span className="text-xl font-bold -translate-y-px">
@@ -264,6 +269,7 @@ const Dashboard = () => {
                 interval={interval}
                 label={item.label}
                 chartType={item.chartType}
+                theme={resolvedTheme as "light" | "dark"}
               />
             </div>
           </div>
