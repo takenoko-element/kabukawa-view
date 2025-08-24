@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ChartType } from "@/types";
 import ChartWidget from "./ChartWidget";
 
 // グリッドレイアウトの型定義
@@ -25,6 +26,7 @@ type LayoutItem = {
   h: number;
   symbol: string;
   label: string;
+  chartType: ChartType;
 };
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -67,6 +69,8 @@ const Dashboard = () => {
     label: string;
     value: string;
   } | null>(null);
+  // チャートのスタイルを管理
+  const [chartType, setChartType] = useState<ChartType>("advanced");
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -126,6 +130,7 @@ const Dashboard = () => {
       // 選択された銘柄の値をsymbolに、ラベルをlabelに設定
       symbol: selectedSymbol.value,
       label: selectedSymbol.label,
+      chartType: chartType,
     };
 
     setItems([...items, newItem]);
@@ -141,6 +146,23 @@ const Dashboard = () => {
   return (
     <div>
       <div className="p-4 flex items-center gap-2">
+        <Select
+          value={chartType}
+          onValueChange={(value: ChartType) => {
+            setChartType(value);
+            setItems((prevItems) =>
+              prevItems.map((item) => ({ ...item, chartType: value }))
+            );
+          }}
+        >
+          <SelectTrigger className="w-[150px] bg-gray-800 border-gray-600 text-white">
+            <SelectValue placeholder="スタイルを選択" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="advanced">ローソク足チャート</SelectItem>
+            <SelectItem value="overview">ラインチャート</SelectItem>
+          </SelectContent>
+        </Select>
         {["15", "30", "60", "240", "D", "W"].map((iv) => (
           <Button
             key={iv}
@@ -199,7 +221,9 @@ const Dashboard = () => {
       <ResponsiveGridLayout
         // isDragging状態に応じてクラスを動的に追加
         className={`layout ${isDragging ? "dragging" : ""}`}
-        layouts={{ lg: items.map(({ symbol, label, ...rest }) => rest) }}
+        layouts={{
+          lg: items.map(({ symbol: _symbol, label: _label, ...rest }) => rest),
+        }}
         cols={{ lg: 24, md: 20, sm: 12, xs: 8, xxs: 4 }}
         rowHeight={50}
         onLayoutChange={handleLayoutChange}
@@ -235,7 +259,12 @@ const Dashboard = () => {
               </button>
             </div>
             <div className="flex-grow h-full">
-              <ChartWidget symbol={item.symbol} interval={interval} />
+              <ChartWidget
+                symbol={item.symbol}
+                interval={interval}
+                label={item.label}
+                chartType={item.chartType}
+              />
             </div>
           </div>
         ))}
