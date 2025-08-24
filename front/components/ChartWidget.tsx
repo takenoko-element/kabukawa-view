@@ -9,11 +9,12 @@ type Props = {
   interval: string;
   label: string;
   chartType: ChartType;
+  theme?: "light" | "dark";
 };
 
 // TradingViewウィジェットを描画するコンポーネント
 const ChartWidget: React.FC<Props> = memo(
-  ({ symbol, interval, label, chartType }) => {
+  ({ symbol, interval, label, chartType, theme = "light" }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     // 安定した一意なIDを生成する
     const widgetId = `tradingview_${symbol.replace(/[:]/g, "_")}`;
@@ -44,7 +45,7 @@ const ChartWidget: React.FC<Props> = memo(
                 symbol: symbol,
                 interval: "D",
                 timezone: "Asia/Tokyo",
-                theme: "dark",
+                theme: theme,
                 style: "3",
                 locale: "ja",
                 enable_publishing: false,
@@ -58,7 +59,7 @@ const ChartWidget: React.FC<Props> = memo(
                 symbol: symbol,
                 interval: interval,
                 timezone: "Asia/Tokyo",
-                theme: "dark",
+                theme: theme,
                 style: "1",
                 locale: "ja",
                 enable_publishing: false,
@@ -80,7 +81,7 @@ const ChartWidget: React.FC<Props> = memo(
         }
       };
       containerRef.current.appendChild(script);
-    }, [symbol, interval, label, chartType, widgetId]); // 依存配列にwidgetIdを追加
+    }, [symbol, interval, label, chartType, widgetId, theme]);
 
     return (
       <div
