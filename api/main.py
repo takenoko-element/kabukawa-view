@@ -23,14 +23,16 @@ class ChartItem(BaseModel):
     w: int      # 幅 (グリッド単位)
     h: int      # 高さ (グリッド単位)
     symbol: str # 銘柄コード
+    label: str
+    chartType: str
 
 # データベースの代わりとなるインメモリ変数
 # { "default": [ChartItem, ...] } のような形式で保存
 db: Dict[str, List[ChartItem]] = {
     "default_layout": [
-        {"i": "a", "x": 0, "y": 0, "w": 8, "h": 6, "symbol": "NIKKEI225"},
-        {"i": "b", "x": 8, "y": 0, "w": 8, "h": 6, "symbol": "OANDA:USDJPY"},
-        {"i": "c", "x": 16, "y": 0, "w": 8, "h": 6, "symbol": "NASDAQ:AAPL"},
+        {"i": "a", "x": 0, "y": 0, "w": 8, "h": 6, "symbol": "NIKKEI225", "label": "日経平均 (Nikkei 225)", "chartType": "advanced"},
+        {"i": "b", "x": 8, "y": 0, "w": 8, "h": 6, "symbol": "FX:USDJPY", "label": "ドル/円 (USD/JPY)", "chartType": "advanced"},
+        {"i": "c", "x": 16, "y": 0, "w": 8, "h": 6, "symbol": "NASDAQ:AAPL", "label": "Apple", "chartType": "advanced"},
     ]
 }
 
