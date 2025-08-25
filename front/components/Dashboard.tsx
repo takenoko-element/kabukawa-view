@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
+import { CandlestickChart, LineChart, BarChart4 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChartType } from "@/types";
 import ChartWidget from "./ChartWidget";
 import ThemeToggleButton from "./ThemeToggleButton";
+import { Separator } from "./ui/separator";
+import { chartTypeOptions, ChartType } from "@/constants/chartTypes";
+import { intervalOptions, Interval } from "@/constants/intervals";
 
 // グリッドレイアウトの型定義
 type LayoutItem = {
@@ -28,7 +31,6 @@ type LayoutItem = {
   h: number;
   symbol: string;
   label: string;
-  chartType: ChartType;
 };
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
@@ -60,11 +62,17 @@ const presetSymbols = [
   { label: "ユーロ/ドル (EUR/USD)", value: "FX:EURUSD" },
 ];
 
+const iconMap: Record<ChartType, React.ElementType> = {
+  candles: CandlestickChart,
+  line: LineChart,
+  bars: BarChart4,
+};
+
 const Dashboard = () => {
   const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
   const [items, setItems] = useState<LayoutItem[]>([]);
-  const [interval, setInterval] = useState("D");
+  const [interval, setInterval] = useState<Interval>("30");
   // ドラッグ/リサイズ中かどうかの状態を管理
   const [isDragging, setIsDragging] = useState(false);
   // 選択された銘柄情報を管理
@@ -73,7 +81,7 @@ const Dashboard = () => {
     value: string;
   } | null>(null);
   // チャートのスタイルを管理
-  const [chartType, setChartType] = useState<ChartType>("advanced");
+  const [chartType, setChartType] = useState<ChartType>("candles");
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -133,7 +141,6 @@ const Dashboard = () => {
       // 選択された銘柄の値をsymbolに、ラベルをlabelに設定
       symbol: selectedSymbol.value,
       label: selectedSymbol.label,
-      chartType: chartType,
     };
 
     setItems([...items, newItem]);
@@ -148,44 +155,33 @@ const Dashboard = () => {
 
   return (
     <div>
-      <div className="p-4 flex items-center gap-2">
-        <Select
-          value={chartType}
-          onValueChange={(value: ChartType) => {
-            setChartType(value);
-            setItems((prevItems) =>
-              prevItems.map((item) => ({ ...item, chartType: value }))
+      <div className="p-2 flex items-center gap-2 h-12">
+        <div>
+          {chartTypeOptions.map((option) => {
+            const IconComponent = iconMap[option.name];
+            return (
+              <Button
+                key={option.name}
+                variant={chartType === option.name ? "default" : "secondary"}
+                size="icon"
+                onClick={() => setChartType(option.name)}
+                title={option.label}
+              >
+                <IconComponent className="h-4 w-4" />
+              </Button>
             );
-          }}
-        >
-          <SelectTrigger className="w-[150px]">
-            {" "}
-            <SelectValue placeholder="スタイルを選択" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="advanced">ローソク足チャート</SelectItem>
-            <SelectItem value="overview">ラインチャート</SelectItem>
-          </SelectContent>
-        </Select>
-        {["15", "30", "60", "240", "D", "W"].map((iv) => (
+          })}
+        </div>
+        <Separator orientation="vertical" />
+        {intervalOptions.map((option) => (
           <Button
-            key={iv}
-            onClick={() => setInterval(iv)}
+            key={option.value}
+            onClick={() => setInterval(option.value)}
             // 現在選択中の時間足と一致する場合のスタイルを追加
-            variant={interval === iv ? "default" : "secondary"}
+            variant={interval === option.value ? "default" : "secondary"}
             className="transition-all duration-200"
           >
-            {/* 表示用のラベルを定義 */}
-            {
-              {
-                "15": "15分",
-                "30": "30分",
-                "60": "1時間",
-                "240": "4時間",
-                D: "日足",
-                W: "週足",
-              }[iv]
-            }
+            {option.label}
           </Button>
         ))}
         <div className="ml-4 flex items-center gap-2">
@@ -268,7 +264,7 @@ const Dashboard = () => {
                 symbol={item.symbol}
                 interval={interval}
                 label={item.label}
-                chartType={item.chartType}
+                chartType={chartType}
                 theme={resolvedTheme as "light" | "dark"}
               />
             </div>
