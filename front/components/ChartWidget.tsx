@@ -4,6 +4,7 @@ import React, { useEffect, useRef, memo } from "react";
 
 import { ChartType } from "@/constants/chartTypes";
 import { Interval } from "@/constants/intervals";
+import { ChartOptions } from "@/types/ChartOptions";
 
 type Props = {
   symbol: string;
@@ -11,11 +12,12 @@ type Props = {
   label: string;
   chartType: ChartType;
   theme?: "light" | "dark";
+  options: ChartOptions;
 };
 
 // TradingViewウィジェットを描画するコンポーネント
 const ChartWidget: React.FC<Props> = memo(
-  ({ symbol, interval, label, chartType, theme = "light" }) => {
+  ({ symbol, interval, label, chartType, theme = "light", options }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     // 安定した一意なIDを生成する
     const widgetId = `tradingview_${symbol.replace(/[:]/g, "_")}`;
@@ -49,9 +51,9 @@ const ChartWidget: React.FC<Props> = memo(
             allow_symbol_change: true,
             container_id: widgetId,
             // 出来高を非表示にする
-            hide_volume: true,
+            // hide_volume: true,
             // チャート上部のツールバーを非表示にする
-            hide_top_toolbar: true,
+            // hide_top_toolbar: true,
             // 左側の描画ツールバーを非表示にする
             // hide_side_toolbar: true,
             // チャート左上の銘柄情報(OHLCなど)を非表示にする
@@ -83,11 +85,12 @@ const ChartWidget: React.FC<Props> = memo(
           new window.TradingView.widget({
             ...baseOptions,
             ...specificOptions,
+            ...options,
           });
         }
       };
       containerRef.current.appendChild(script);
-    }, [symbol, interval, label, chartType, widgetId, theme]);
+    }, [symbol, interval, label, chartType, widgetId, theme, options]);
 
     return (
       <div
