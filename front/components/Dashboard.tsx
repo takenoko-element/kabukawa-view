@@ -6,7 +6,7 @@ import { useTheme } from "next-themes";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { CandlestickChart, LineChart, BarChart4 } from "lucide-react";
+import { CandlestickChart, LineChart, BarChart4, Settings } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,11 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import ChartWidget from "./ChartWidget";
-import ThemeToggleButton from "./ThemeToggleButton";
-import { Separator } from "./ui/separator";
+import { Separator } from "@/components/ui/separator";
 import { chartTypeOptions, ChartType } from "@/constants/chartTypes";
 import { intervalOptions, Interval } from "@/constants/intervals";
+import { ChartOptions } from "@/types/ChartOptions";
+import ChartWidget from "./ChartWidget";
+import ThemeToggleButton from "./ThemeToggleButton";
+import { ChartSettingsModal } from "./ChartSettingsModal";
 
 // グリッドレイアウトの型定義
 type LayoutItem = {
@@ -82,6 +84,16 @@ const Dashboard = () => {
   } | null>(null);
   // チャートのスタイルを管理
   const [chartType, setChartType] = useState<ChartType>("candles");
+  // モーダルの開閉状態を管理
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  // チャートオプションの状態を管理
+  const [chartOptions, setChartOptions] = useState<ChartOptions>({
+    hide_top_toolbar: true,
+    hide_side_toolbar: true,
+    hide_legend: false,
+    hide_volume: false,
+    withdateranges: false,
+  });
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -151,12 +163,18 @@ const Dashboard = () => {
     setItems(items.filter((item) => item.i !== itemIdToRemove));
   };
 
+  const handleSaveSettings = (newOptions: ChartOptions) => {
+    setChartOptions(newOptions);
+    setIsSettingsModalOpen(false);
+  };
+
   if (isLoading) return <div className="text-center p-10">Loading...</div>;
 
   return (
     <div>
-      <div className="p-2 flex items-center gap-2 h-12">
-        <div>
+      <div className="h-14 px-4 py-2 flex items-center gap-4">
+        {/* グループ1: チャートスタイルと設定 */}
+        <div className="flex items-center gap-1">
           {chartTypeOptions.map((option) => {
             const IconComponent = iconMap[option.name];
             return (
@@ -171,21 +189,33 @@ const Dashboard = () => {
               </Button>
             );
           })}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setIsSettingsModalOpen(true)}
+            title="チャート設定"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
         </div>
         <Separator orientation="vertical" />
-        {intervalOptions.map((option) => (
-          <Button
-            key={option.value}
-            onClick={() => setInterval(option.value)}
-            // 現在選択中の時間足と一致する場合のスタイルを追加
-            variant={interval === option.value ? "default" : "secondary"}
-            className="transition-all duration-200"
-          >
-            {option.label}
-          </Button>
-        ))}
+        {/* グループ2: 時間足 */}
+        <div className="flex items-center gap-1">
+          {intervalOptions.map((option) => (
+            <Button
+              key={option.value}
+              onClick={() => setInterval(option.value)}
+              // 現在選択中の時間足と一致する場合のスタイルを追加
+              variant={interval === option.value ? "default" : "secondary"}
+              className="transition-all duration-200"
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+        <Separator orientation="vertical" />
+        {/* グループ2: 銘柄追加のプルダウンメニュー */}
         <div className="ml-4 flex items-center gap-2">
-          {/* プルダウンメニュー */}
           <Select
             onValueChange={(value) => {
               const selected = presetSymbols.find((s) => s.value === value);
@@ -266,11 +296,19 @@ const Dashboard = () => {
                 label={item.label}
                 chartType={chartType}
                 theme={resolvedTheme as "light" | "dark"}
+                options={chartOptions}
               />
             </div>
           </div>
         ))}
       </ResponsiveGridLayout>
+      {/* --- モーダルコンポーネントを描画 --- */}
+      <ChartSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        options={chartOptions}
+        onSave={handleSaveSettings}
+      />
     </div>
   );
 };
