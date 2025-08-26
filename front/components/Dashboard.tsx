@@ -56,7 +56,7 @@ const presetSymbols = [
   { label: "トヨタ自動車", value: "TRADU:7203" },
   { label: "ソニーグループ", value: "TRADU:6758" },
   { label: "ソフトバンクグループ", value: "TRADU:9984" },
-  { label: "S&P 500", value: "SP:SPX" },
+  { label: "S&P 500", value: "VANTAGE:SP500" },
   { label: "NASDAQ 100", value: "NASDAQ:NDX" },
   { label: "Apple", value: "NASDAQ:AAPL" },
   { label: "Microsoft", value: "NASDAQ:MSFT" },
@@ -148,8 +148,8 @@ const Dashboard = () => {
       x: 0,
       y: Infinity,
       // デフォルトのサイズ
-      w: 8,
-      h: 6,
+      w: 24,
+      h: 18,
       // 選択された銘柄の値をsymbolに、ラベルをlabelに設定
       symbol: selectedSymbol.value,
       label: selectedSymbol.label,
@@ -252,16 +252,13 @@ const Dashboard = () => {
       <ResponsiveGridLayout
         // isDragging状態に応じてクラスを動的に追加
         className={`layout ${isDragging ? "dragging" : ""}`}
-        layouts={{
-          lg: items.map(({ symbol: _symbol, label: _label, ...rest }) => rest),
-        }}
-        cols={{ lg: 24, md: 20, sm: 12, xs: 8, xxs: 4 }}
-        rowHeight={50}
+        cols={{ lg: 72, md: 60, sm: 36, xs: 24, xxs: 12 }}
+        rowHeight={16}
         onLayoutChange={handleLayoutChange}
         draggableHandle=".drag-handle"
         resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
-        compactType={null}
-        preventCollision={true}
+        compactType="vertical"
+        preventCollision={false}
         // ドラッグ/リサイズ開始/終了時にisDragging状態を更新
         onDragStart={() => setIsDragging(true)}
         onDragStop={() => setIsDragging(false)}
@@ -274,6 +271,13 @@ const Dashboard = () => {
         {items.map((item) => (
           <div
             key={item.i}
+            data-grid={{
+              i: item.i,
+              x: item.x,
+              y: item.y,
+              w: item.w,
+              h: item.h,
+            }}
             className="bg-card rounded-lg overflow-hidden border border-border shadow-lg flex flex-col"
           >
             <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">

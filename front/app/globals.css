@@ -147,7 +147,7 @@
 .react-grid-layout.dragging {
   /* グリッドのサイズをrowHeightとcolsから計算した値に合わせる */
   /* この値はDashboard.tsxのcolsとrowHeightに依存します */
-  background-size: calc(100% / 24) 50px;
+  background-size: calc(100% / 72) 16px;
   background-image: linear-gradient(to right, #4b5563 1px, transparent 1px),
     linear-gradient(to bottom, #4b5563 1px, transparent 1px);
 }
