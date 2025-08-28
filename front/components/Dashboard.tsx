@@ -87,13 +87,16 @@ const Dashboard = () => {
   // モーダルの開閉状態を管理
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   // チャートオプションの状態を管理
-  const [chartOptions, setChartOptions] = useState<ChartOptions>({
+  const [widgetOptions, setWidgetOptions] = useState<
+    Omit<ChartOptions, "enable_chart_operation">
+  >({
     hide_top_toolbar: true,
     hide_side_toolbar: true,
     hide_legend: false,
     hide_volume: false,
     withdateranges: false,
   });
+  const [enableChartOperation, setEnableChartOperation] = useState(false);
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -164,7 +167,12 @@ const Dashboard = () => {
   };
 
   const handleSaveSettings = (newOptions: ChartOptions) => {
-    setChartOptions(newOptions);
+    const { enable_chart_operation, ...restOptions } = newOptions;
+
+    if (JSON.stringify(widgetOptions) !== JSON.stringify(restOptions)) {
+      setWidgetOptions(restOptions);
+    }
+    setEnableChartOperation(enable_chart_operation);
     setIsSettingsModalOpen(false);
   };
 
@@ -293,14 +301,18 @@ const Dashboard = () => {
                 </span>
               </button>
             </div>
-            <div className="flex-grow h-full">
+            <div
+              className={`flex-grow h-full ${
+                !enableChartOperation ? "pointer-events-none" : ""
+              }`}
+            >
               <ChartWidget
                 symbol={item.symbol}
                 interval={interval}
                 label={item.label}
                 chartType={chartType}
                 theme={resolvedTheme as "light" | "dark"}
-                options={chartOptions}
+                options={widgetOptions}
               />
             </div>
           </div>
@@ -310,7 +322,10 @@ const Dashboard = () => {
       <ChartSettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        options={chartOptions}
+        options={{
+          ...widgetOptions,
+          enable_chart_operation: enableChartOperation,
+        }}
         onSave={handleSaveSettings}
       />
     </div>

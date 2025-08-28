@@ -12,7 +12,7 @@ type Props = {
   label: string;
   chartType: ChartType;
   theme?: "light" | "dark";
-  options: ChartOptions;
+  options: Omit<ChartOptions, "enable_chart_operation">;
 };
 
 // TradingViewウィジェットを描画するコンポーネント
@@ -50,16 +50,6 @@ const ChartWidget: React.FC<Props> = memo(
             enable_publishing: false,
             allow_symbol_change: true,
             container_id: widgetId,
-            // 出来高を非表示にする
-            // hide_volume: true,
-            // チャート上部のツールバーを非表示にする
-            // hide_top_toolbar: true,
-            // 左側の描画ツールバーを非表示にする
-            // hide_side_toolbar: true,
-            // チャート左上の銘柄情報(OHLCなど)を非表示にする
-            // hide_legend: true,
-            // 下部の日付範囲セレクターを非表示にする
-            // withdateranges: false,
           };
 
           let specificOptions = {};

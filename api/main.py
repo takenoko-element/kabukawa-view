@@ -30,9 +30,9 @@ class ChartItem(BaseModel):
 # { "default": [ChartItem, ...] } のような形式で保存
 db: Dict[str, List[ChartItem]] = {
     "default_layout": [
-        {"i": "a", "x": 0, "y": 0, "w": 8, "h": 6, "symbol": "NIKKEI225", "label": "日経平均 (Nikkei 225)", "chartType": "advanced"},
-        {"i": "b", "x": 8, "y": 0, "w": 8, "h": 6, "symbol": "FX:USDJPY", "label": "ドル/円 (USD/JPY)", "chartType": "advanced"},
-        {"i": "c", "x": 16, "y": 0, "w": 8, "h": 6, "symbol": "NASDAQ:AAPL", "label": "Apple", "chartType": "advanced"},
+        {"i": "a", "x": 0, "y": 0, "w": 24, "h": 18, "symbol": "NIKKEI225", "label": "日経平均 (Nikkei 225)", "chartType": "advanced"},
+        {"i": "b", "x": 24, "y": 0, "w": 24, "h": 18, "symbol": "FX:USDJPY", "label": "ドル/円 (USD/JPY)", "chartType": "advanced"},
+        {"i": "c", "x": 48, "y": 0, "w": 24, "h": 18, "symbol": "NASDAQ:AAPL", "label": "Apple", "chartType": "advanced"},
     ]
 }
 
