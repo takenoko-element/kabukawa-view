@@ -49,6 +49,11 @@ const optionMetadata = [
     label: "日付範囲セレクターを表示",
     description: "チャート下部の日付や期間を選択するボタンです。",
   },
+  {
+    key: "enable_chart_operation",
+    label: "チャート操作を有効化",
+    description: "チャートをドラッグ/スクロールで操作を有効にします。",
+  },
 ];
 
 export const ChartSettingsModal = ({

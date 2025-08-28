@@ -5,4 +5,5 @@ export type ChartOptions = {
   hide_legend: boolean;
   hide_volume: boolean;
   withdateranges: boolean;
+  enable_chart_operation: boolean;
 };
