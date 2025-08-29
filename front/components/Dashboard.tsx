@@ -6,7 +6,13 @@ import { useTheme } from "next-themes";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { CandlestickChart, LineChart, BarChart4, Settings } from "lucide-react";
+import {
+  CandlestickChart,
+  LineChart,
+  BarChart4,
+  Settings,
+  Search,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +29,8 @@ import { ChartOptions } from "@/types/ChartOptions";
 import ChartWidget from "./ChartWidget";
 import ThemeToggleButton from "./ThemeToggleButton";
 import { ChartSettingsModal } from "./ChartSettingsModal";
+import { Symbol } from "@/types/Symbol";
+import { SymbolSearchModal } from "./SymbolSearchModal";
 
 // グリッドレイアウトの型定義
 type LayoutItem = {
@@ -62,6 +70,11 @@ const presetSymbols = [
   { label: "Microsoft", value: "NASDAQ:MSFT" },
   { label: "ドル/円 (USD/JPY)", value: "FX:USDJPY" },
   { label: "ユーロ/ドル (EUR/USD)", value: "FX:EURUSD" },
+  { label: "ニッスイ", value: "TRADU:1332" },
+  { label: "大成建設", value: "TRADU:1801" },
+  { label: "大林組", value: "TRADU:1802" },
+  { label: "清水建設", value: "1803" },
+  { label: "長谷工コーポレーション", value: "TSE:1808" },
 ];
 
 const iconMap: Record<ChartType, React.ElementType> = {
@@ -97,6 +110,8 @@ const Dashboard = () => {
     withdateranges: false,
   });
   const [enableChartOperation, setEnableChartOperation] = useState(false);
+  // 検索モーダルの開閉状態を管理
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -176,6 +191,21 @@ const Dashboard = () => {
     setIsSettingsModalOpen(false);
   };
 
+  // 複数の銘柄を一度に追加するためのハンドラ
+  const handleAddMultipleCharts = (symbols: Symbol[]) => {
+    const newItems: LayoutItem[] = symbols.map((symbol) => ({
+      i: `${symbol.value}_${new Date().getTime()}_${Math.random()}`,
+      x: 0,
+      y: Infinity,
+      w: 24,
+      h: 18,
+      symbol: symbol.value,
+      label: symbol.label,
+    }));
+
+    setItems((prevItems) => [...prevItems, ...newItems]);
+  };
+
   if (isLoading) return <div className="text-center p-10">Loading...</div>;
 
   return (
@@ -222,7 +252,13 @@ const Dashboard = () => {
           ))}
         </div>
         <Separator orientation="vertical" />
-        {/* グループ2: 銘柄追加のプルダウンメニュー */}
+        {/* グループ3: 銘柄追加のプルダウンメニュー */}
+        <div className="ml-4 flex items-center gap-2">
+          <Button onClick={() => setIsSearchModalOpen(true)}>
+            <Search className="mr-2 h-4 w-4" />
+            銘柄を追加
+          </Button>
+        </div>
         <div className="ml-4 flex items-center gap-2">
           <Select
             onValueChange={(value) => {
@@ -247,6 +283,7 @@ const Dashboard = () => {
           <Button onClick={handleAddChart}>追加</Button>
         </div>
         <div className="flex-grow" /> {/* 右寄せにするためのスペーサー */}
+        {/* レイアウト保存 */}
         <Button
           onClick={handleSaveLayout}
           variant="outline"
@@ -254,6 +291,7 @@ const Dashboard = () => {
         >
           レイアウト保存
         </Button>
+        {/* ライトモード/ダークモード */}
         <ThemeToggleButton />
       </div>
 
@@ -327,6 +365,11 @@ const Dashboard = () => {
           enable_chart_operation: enableChartOperation,
         }}
         onSave={handleSaveSettings}
+      />
+      <SymbolSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onAdd={handleAddMultipleCharts}
       />
     </div>
   );
