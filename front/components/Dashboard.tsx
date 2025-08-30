@@ -1,7 +1,7 @@
 // front/app/components/Dashboard.tsx
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -74,7 +74,7 @@ const presetSymbols = [
   { label: "大成建設", value: "TRADU:1801" },
   { label: "大林組", value: "TRADU:1802" },
   { label: "清水建設", value: "1803" },
-  { label: "長谷工コーポレーション", value: "TSE:1808" },
+  { label: "長谷工コーポレーション", value: "2503" },
 ];
 
 const iconMap: Record<ChartType, React.ElementType> = {
@@ -82,6 +82,8 @@ const iconMap: Record<ChartType, React.ElementType> = {
   line: LineChart,
   bars: BarChart4,
 };
+
+const COLS = { lg: 72, md: 60, sm: 36, xs: 24, xxs: 12 };
 
 const Dashboard = () => {
   const { resolvedTheme } = useTheme();
@@ -112,6 +114,8 @@ const Dashboard = () => {
   const [enableChartOperation, setEnableChartOperation] = useState(false);
   // 検索モーダルの開閉状態を管理
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  // デフォルトのチャートサイズを管理
+  const [defaultChartSize, setDefaultChartSize] = useState({ w: 24, h: 18 });
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -131,6 +135,46 @@ const Dashboard = () => {
       console.log("Layout saved!");
     },
   });
+
+  const findNextAvailablePosition = useCallback(
+    (
+      layout: LayoutItem[],
+      itemWidth: number,
+      itemHeight: number
+    ): { x: number; y: number } => {
+      const cols = COLS.lg; // 最大のcolsを基準に計算
+      let maxY = 0;
+      layout.forEach((item) => {
+        maxY = Math.max(maxY, item.y + item.h);
+      });
+
+      // グリッドを上から順にチェック
+      for (let y = 0; y < maxY + itemHeight; y++) {
+        for (let x = 0; x <= cols - itemWidth; x++) {
+          let isSpaceAvailable = true;
+          // 新しいアイテムが既存のアイテムと重ならないかチェック
+          for (const item of layout) {
+            if (
+              x < item.x + item.w &&
+              x + itemWidth > item.x &&
+              y < item.y + item.h &&
+              y + itemHeight > item.y
+            ) {
+              isSpaceAvailable = false;
+              break;
+            }
+          }
+          if (isSpaceAvailable) {
+            return { x, y };
+          }
+        }
+      }
+
+      // 空きスペースが見つからなければ最下部に配置
+      return { x: 0, y: maxY };
+    },
+    []
+  );
 
   const handleLayoutChange = (newLayout: ReactGridLayout.Layout[]) => {
     setItems((currentItems) => {
@@ -157,18 +201,15 @@ const Dashboard = () => {
 
   const handleAddChart = () => {
     if (!selectedSymbol) return;
+    const { w, h } = defaultChartSize;
+    const { x, y } = findNextAvailablePosition(items, w, h);
 
     const newItem: LayoutItem = {
-      // ユニークなIDを生成
       i: `item_${new Date().getTime()}`,
-      // 新しいチャートは左下に配置する
-      // y: Infinity を指定すると、グリッドの最下部に自動で配置される
-      x: 0,
-      y: Infinity,
-      // デフォルトのサイズ
-      w: 24,
-      h: 18,
-      // 選択された銘柄の値をsymbolに、ラベルをlabelに設定
+      x,
+      y,
+      w,
+      h,
       symbol: selectedSymbol.value,
       label: selectedSymbol.label,
     };
@@ -181,28 +222,50 @@ const Dashboard = () => {
     setItems(items.filter((item) => item.i !== itemIdToRemove));
   };
 
-  const handleSaveSettings = (newOptions: ChartOptions) => {
-    const { enable_chart_operation, ...restOptions } = newOptions;
+  const handleSaveSettings = (
+    newOptions: ChartOptions & { default_w?: number; default_h?: number }
+  ) => {
+    const { enable_chart_operation, default_w, default_h, ...restOptions } =
+      newOptions;
 
     if (JSON.stringify(widgetOptions) !== JSON.stringify(restOptions)) {
       setWidgetOptions(restOptions);
     }
-    setEnableChartOperation(enable_chart_operation);
+    setEnableChartOperation(!!enable_chart_operation);
+    // デフォルトサイズを更新
+    if (default_w && default_h) {
+      setDefaultChartSize({ w: default_w, h: default_h });
+    }
     setIsSettingsModalOpen(false);
   };
 
   // 複数の銘柄を一度に追加するためのハンドラ
   const handleAddMultipleCharts = (symbols: Symbol[]) => {
-    const newItems: LayoutItem[] = symbols.map((symbol) => ({
-      i: `${symbol.value}_${new Date().getTime()}_${Math.random()}`,
-      x: 0,
-      y: Infinity,
-      w: 24,
-      h: 18,
-      symbol: symbol.value,
-      label: symbol.label,
-    }));
+    // 既存のアイテムのコピーを作成し、これを基準に新しいアイテムの配置を計算する
+    const layoutForPlacement = [...items];
 
+    const newItems = symbols.map((symbol) => {
+      const { w, h } = defaultChartSize;
+      // 常に最新のレイアウト状況を渡して、次の配置場所を見つける
+      const { x, y } = findNextAvailablePosition(layoutForPlacement, w, h);
+
+      const newItem: LayoutItem = {
+        i: `${symbol.value}_${new Date().getTime()}_${Math.random()}`,
+        x,
+        y,
+        w,
+        h,
+        symbol: symbol.value,
+        label: symbol.label,
+      };
+
+      // 次のアイテムの配置計算のために、作成したアイテムを仮のレイアウトに追加する
+      layoutForPlacement.push(newItem);
+
+      return newItem;
+    });
+
+    // 最後に、既存のアイテムと新しく作成したすべてのアイテムを結合してstateを更新する
     setItems((prevItems) => [...prevItems, ...newItems]);
   };
 
@@ -298,7 +361,7 @@ const Dashboard = () => {
       <ResponsiveGridLayout
         // isDragging状態に応じてクラスを動的に追加
         className={`layout ${isDragging ? "dragging" : ""}`}
-        cols={{ lg: 72, md: 60, sm: 36, xs: 24, xxs: 12 }}
+        cols={COLS}
         rowHeight={16}
         onLayoutChange={handleLayoutChange}
         draggableHandle=".drag-handle"
@@ -327,8 +390,7 @@ const Dashboard = () => {
             className="bg-card rounded-lg overflow-hidden border border-border shadow-lg flex flex-col"
           >
             <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">
-              <span>{item.label}</span>
-              <div className="flex-grow" />
+              <span className="flex-1 min-w-0 truncate">{item.label}</span>
               <button
                 onClick={() => handleRemoveChart(item.i)}
                 className="w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -363,6 +425,8 @@ const Dashboard = () => {
         options={{
           ...widgetOptions,
           enable_chart_operation: enableChartOperation,
+          default_w: defaultChartSize.w,
+          default_h: defaultChartSize.h,
         }}
         onSave={handleSaveSettings}
       />
