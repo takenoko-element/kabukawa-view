@@ -25,7 +25,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { chartTypeOptions, ChartType } from "@/constants/chartTypes";
 import { intervalOptions, Interval } from "@/constants/intervals";
-import { ChartOptions } from "@/types/ChartOptions";
+import { AllChartSettings, TradingViewOptions } from "@/types/ChartOptions";
 import ChartWidget from "./ChartWidget";
 import ThemeToggleButton from "./ThemeToggleButton";
 import { ChartSettingsModal } from "./ChartSettingsModal";
@@ -102,9 +102,7 @@ const Dashboard = () => {
   // モーダルの開閉状態を管理
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   // チャートオプションの状態を管理
-  const [widgetOptions, setWidgetOptions] = useState<
-    Omit<ChartOptions, "enable_chart_operation">
-  >({
+  const [widgetOptions, setWidgetOptions] = useState<TradingViewOptions>({
     hide_top_toolbar: true,
     hide_side_toolbar: true,
     hide_legend: false,
@@ -222,9 +220,7 @@ const Dashboard = () => {
     setItems(items.filter((item) => item.i !== itemIdToRemove));
   };
 
-  const handleSaveSettings = (
-    newOptions: ChartOptions & { default_w?: number; default_h?: number }
-  ) => {
+  const handleSaveSettings = (newOptions: AllChartSettings) => {
     const { enable_chart_operation, default_w, default_h, ...restOptions } =
       newOptions;
 
