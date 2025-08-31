@@ -360,7 +360,7 @@ const Dashboard = () => {
         cols={COLS}
         rowHeight={16}
         onLayoutChange={handleLayoutChange}
-        draggableHandle=".drag-handle"
+        draggableCancel=".chart-area"
         resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
         compactType="vertical"
         preventCollision={false}
@@ -397,19 +397,23 @@ const Dashboard = () => {
                 </span>
               </button>
             </div>
-            <div
-              className={`flex-grow h-full ${
-                !enableChartOperation ? "pointer-events-none" : ""
-              }`}
-            >
-              <ChartWidget
-                symbol={item.symbol}
-                interval={interval}
-                label={item.label}
-                chartType={chartType}
-                theme={resolvedTheme as "light" | "dark"}
-                options={widgetOptions}
-              />
+            <div className="flex-grow h-full relative">
+              {/* ChartWidget自体は常にドラッグキャンセル領域に配置 */}
+              <div className="chart-area h-full">
+                <ChartWidget
+                  symbol={item.symbol}
+                  interval={interval}
+                  label={item.label}
+                  chartType={chartType}
+                  theme={resolvedTheme as "light" | "dark"}
+                  options={widgetOptions}
+                />
+              </div>
+
+              {/* チャート操作が無効な時だけ、上に透明なオーバーレイを重ねてドラッグ操作を受け付ける */}
+              {!enableChartOperation && (
+                <div className="absolute inset-0 cursor-move" />
+              )}
             </div>
           </div>
         ))}
