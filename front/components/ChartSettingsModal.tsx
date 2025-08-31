@@ -1,7 +1,7 @@
 // front/components/ChartSettingsModal.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -78,10 +78,46 @@ export const ChartSettingsModal = ({
     default_h?: string;
   }>({});
 
-  // propsで渡されたoptionsが変更されたらローカルstateも更新
+  // バリデーションチェック
+  const validateOptions = useCallback((opts: typeof localOptions) => {
+    const newErrors: { default_w?: string; default_h?: string } = {};
+    const { default_w, default_h } = opts;
+
+    // 幅(W)のバリデーション
+    if (default_w === undefined || String(default_w).trim() === "") {
+      newErrors.default_w = "数値を入力してください。";
+    } else if (isNaN(default_w)) {
+      newErrors.default_w = "無効な数値です。";
+    } else {
+      const c = SIZE_CONSTRAINTS.w;
+      if (default_w < c.min || default_w > c.max) {
+        newErrors.default_w = `${c.min}〜${c.max}の範囲で入力してください。`;
+      }
+    }
+
+    // 高さ(H)のバリデーション
+    if (default_h === undefined || String(default_h).trim() === "") {
+      newErrors.default_h = "数値を入力してください。";
+    } else if (isNaN(default_h)) {
+      newErrors.default_h = "無効な数値です。";
+    } else {
+      const c = SIZE_CONSTRAINTS.h;
+      if (default_h < c.min || default_h > c.max) {
+        newErrors.default_h = `${c.min}〜${c.max}の範囲で入力してください。`;
+      }
+    }
+    setErrors(newErrors);
+  }, []);
+
   useEffect(() => {
-    setLocalOptions(options);
-  }, [options]);
+    if (isOpen) {
+      setLocalOptions(options);
+    }
+  }, [options, isOpen]);
+
+  useEffect(() => {
+    validateOptions(localOptions);
+  }, [localOptions, validateOptions]);
 
   // トグルスイッチの変更をハンドル
   const handleToggle = (key: keyof ChartOptions, checked: boolean) => {
@@ -98,32 +134,7 @@ export const ChartSettingsModal = ({
   // チャートサイズの変更
   const handleSizeChange = (key: "default_w" | "default_h", value: string) => {
     const numValue = value === "" ? undefined : Number(value);
-
-    // stateを更新して入力値を即座に反映
     setLocalOptions((prev) => ({ ...prev, [key]: numValue }));
-
-    // バリデーションチェック
-    if (numValue === undefined || value.trim() === "") {
-      setErrors((prev) => ({ ...prev, [key]: "数値を入力してください。" }));
-    } else if (isNaN(numValue)) {
-      setErrors((prev) => ({ ...prev, [key]: "無効な数値です。" }));
-    } else {
-      const constraints =
-        key === "default_w" ? SIZE_CONSTRAINTS.w : SIZE_CONSTRAINTS.h;
-      if (numValue < constraints.min || numValue > constraints.max) {
-        setErrors((prev) => ({
-          ...prev,
-          [key]: `${constraints.min}〜${constraints.max}の範囲で入力してください。`,
-        }));
-      } else {
-        // エラーがない場合は該当キーのエラーメッセージを削除
-        setErrors((prev) => {
-          const newErrors = { ...prev };
-          delete newErrors[key];
-          return newErrors;
-        });
-      }
-    }
   };
 
   // エラーオブジェクトに何かしらのキーが存在するかどうかで、エラーの有無を判定
@@ -155,7 +166,7 @@ export const ChartSettingsModal = ({
                 </div>
                 <Switch
                   id={key}
-                  checked={isChecked}
+                  checked={!!isChecked}
                   onCheckedChange={(checked) =>
                     handleToggle(key as keyof ChartOptions, checked)
                   }
