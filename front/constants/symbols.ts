@@ -345,15 +345,15 @@ export const fxSymbols = [
 export const indexSymbols = [
   { label: "日経平均 (Nikkei 225)", value: "NIKKEI225" },
   { label: "TOPIX", value: "TOPIX" },
-  { label: "S&P 500", value: "SP:SPX" },
+  { label: "S&P 500", value: "VANTAGE:SP500" },
   { label: "NASDAQ 100", value: "NASDAQ:NDX" },
-  { label: "ダウ平均 (DJI)", value: "DJ:DJI" },
-  { label: "ラッセル 2000", value: "RUSSELL:RUT" },
+  { label: "ダウ平均 (DJI)", value: "DJI" },
+  { label: "ラッセル 2000", value: "RUSSELL" },
   { label: "ドイツ DAX", value: "XETR:DAX" },
-  { label: "イギリス FTSE 100", value: "TVC:UKX" },
-  { label: "フランス CAC 40", value: "EURONEXT:PX1" },
-  { label: "香港ハンセン指数", value: "HSI:HSI" },
-  { label: "上海総合指数", value: "SSE:000001" },
+  { label: "イギリス FTSE 100", value: "FTSE100" },
+  { label: "フランス CAC 40", value: "CAC40" },
+  { label: "香港ハンセン指数", value: "HSI" },
+  { label: "上海総合指数", value: "950096" },
 ];
 
 // すべての銘柄を結合したリスト（オプション）
