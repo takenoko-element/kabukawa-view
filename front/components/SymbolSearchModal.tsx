@@ -27,17 +27,23 @@ type Props = {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (symbols: Symbol[]) => void;
+  addedSymbols: string[];
 };
 
 const TABS = {
   japan: { label: "日本株", data: nikkei225Symbols },
   us: { label: "米国株", data: usStockSymbols },
-  index: { label: "指数", data: indexSymbols },
+  index: { label: "インデックス", data: indexSymbols },
   fx: { label: "FX", data: fxSymbols },
 };
 type TabKey = keyof typeof TABS;
 
-export const SymbolSearchModal = ({ isOpen, onClose, onAdd }: Props) => {
+export const SymbolSearchModal = ({
+  isOpen,
+  onClose,
+  onAdd,
+  addedSymbols,
+}: Props) => {
   const [activeTab, setActiveTab] = useState<TabKey>("japan");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSymbols, setSelectedSymbols] = useState<Symbol[]>([]);
@@ -55,6 +61,11 @@ export const SymbolSearchModal = ({ isOpen, onClose, onAdd }: Props) => {
   }, [activeTab, searchQuery]);
 
   const handleSelectSymbol = (symbol: Symbol) => {
+    // 既にダッシュボードに追加されているシンボルは選択不可にする
+    if (addedSymbols.includes(symbol.value)) {
+      return;
+    }
+
     setSelectedSymbols((prev) =>
       prev.some((s) => s.value === symbol.value)
         ? prev.filter((s) => s.value !== symbol.value)
@@ -133,7 +144,7 @@ export const SymbolSearchModal = ({ isOpen, onClose, onAdd }: Props) => {
               onValueChange={(value) => setActiveTab(value as TabKey)}
               className="flex flex-col flex-grow min-h-0"
             >
-              <TabsList>
+              <TabsList className="gap-3">
                 {Object.entries(TABS).map(([key, { label }]) => (
                   <TabsTrigger key={key} value={key}>
                     {label}
@@ -147,13 +158,16 @@ export const SymbolSearchModal = ({ isOpen, onClose, onAdd }: Props) => {
                     const isSelected = selectedSymbols.some(
                       (s) => s.value === symbol.value
                     );
+                    const isAlreadyAdded = addedSymbols.includes(symbol.value);
                     return (
                       <div
                         key={symbol.value}
                         onClick={() => handleSelectSymbol(symbol)}
-                        className={`flex items-center gap-4 p-2 pr-4 rounded-md cursor-pointer hover:bg-muted ${
-                          isSelected ? "bg-muted font-semibold" : ""
-                        }`}
+                        className={`flex items-center gap-4 p-2 pr-4 rounded-md ${
+                          isAlreadyAdded
+                            ? "opacity-50 cursor-not-allowed"
+                            : "cursor-pointer hover:bg-muted"
+                        } ${isSelected ? "bg-muted font-semibold" : ""}`}
                       >
                         <span className="w-20 text-sm text-muted-foreground">
                           {symbol.value.split(":").pop()}
@@ -161,6 +175,9 @@ export const SymbolSearchModal = ({ isOpen, onClose, onAdd }: Props) => {
                         <span className="flex-grow truncate">
                           {symbol.label}
                         </span>
+                        {isAlreadyAdded && (
+                          <Badge variant="secondary">追加済み</Badge>
+                        )}
                       </div>
                     );
                   })}
