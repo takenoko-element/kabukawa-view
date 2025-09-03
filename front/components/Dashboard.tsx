@@ -1,7 +1,7 @@
 // front/app/components/Dashboard.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTheme } from "next-themes";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -119,6 +119,8 @@ const Dashboard = () => {
     queryKey: ["layout"],
     queryFn: fetchLayout,
   });
+
+  const addedSymbols = useMemo(() => items.map((item) => item.symbol), [items]);
 
   useEffect(() => {
     if (initialLayout) {
@@ -478,6 +480,7 @@ const Dashboard = () => {
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         onAdd={handleAddMultipleCharts}
+        addedSymbols={addedSymbols}
       />
     </div>
   );
