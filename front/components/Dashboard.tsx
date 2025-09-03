@@ -12,6 +12,8 @@ import {
   BarChart4,
   Settings,
   Search,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -70,11 +72,7 @@ const presetSymbols = [
   { label: "Microsoft", value: "NASDAQ:MSFT" },
   { label: "ドル/円 (USD/JPY)", value: "FX:USDJPY" },
   { label: "ユーロ/ドル (EUR/USD)", value: "FX:EURUSD" },
-  { label: "ニッスイ", value: "TRADU:1332" },
-  { label: "大成建設", value: "TRADU:1801" },
-  { label: "大林組", value: "TRADU:1802" },
-  { label: "清水建設", value: "1803" },
-  { label: "長谷工コーポレーション", value: "2503" },
+  { label: "ダウ平均 (DJI)", value: "DJI" },
 ];
 
 const iconMap: Record<ChartType, React.ElementType> = {
@@ -114,6 +112,8 @@ const Dashboard = () => {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   // デフォルトのチャートサイズを管理
   const [defaultChartSize, setDefaultChartSize] = useState({ w: 24, h: 18 });
+  // ヘッダーの表示状態を管理
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
@@ -268,156 +268,200 @@ const Dashboard = () => {
   if (isLoading) return <div className="text-center p-10">Loading...</div>;
 
   return (
-    <div>
-      <div className="h-14 px-4 py-2 flex items-center gap-4">
-        {/* グループ1: チャートスタイルと設定 */}
-        <div className="flex items-center gap-1">
-          {chartTypeOptions.map((option) => {
-            const IconComponent = iconMap[option.name];
-            return (
-              <Button
-                key={option.name}
-                variant={chartType === option.name ? "default" : "secondary"}
-                size="icon"
-                onClick={() => setChartType(option.name)}
-                title={option.label}
-              >
-                <IconComponent className="h-4 w-4" />
-              </Button>
-            );
-          })}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsSettingsModalOpen(true)}
-            title="チャート設定"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-        </div>
-        <Separator orientation="vertical" />
-        {/* グループ2: 時間足 */}
-        <div className="flex items-center gap-1">
-          {intervalOptions.map((option) => (
-            <Button
-              key={option.value}
-              onClick={() => setInterval(option.value)}
-              // 現在選択中の時間足と一致する場合のスタイルを追加
-              variant={interval === option.value ? "default" : "secondary"}
-              className="transition-all duration-200"
-            >
-              {option.label}
-            </Button>
-          ))}
-        </div>
-        <Separator orientation="vertical" />
-        {/* グループ3: 銘柄追加のプルダウンメニュー */}
-        <div className="ml-4 flex items-center gap-2">
-          <Button onClick={() => setIsSearchModalOpen(true)}>
-            <Search className="mr-2 h-4 w-4" />
-            銘柄を追加
-          </Button>
-        </div>
-        <div className="ml-4 flex items-center gap-2">
-          <Select
-            onValueChange={(value) => {
-              const selected = presetSymbols.find((s) => s.value === value);
-              if (selected) {
-                setSelectedSymbol(selected);
-              }
-            }}
-            value={selectedSymbol?.value ?? ""}
-          >
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="一覧から選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {presetSymbols.map((symbol) => (
-                <SelectItem key={symbol.value} value={symbol.value}>
-                  {symbol.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button onClick={handleAddChart}>追加</Button>
-        </div>
-        <div className="flex-grow" /> {/* 右寄せにするためのスペーサー */}
-        {/* レイアウト保存 */}
-        <Button
-          onClick={handleSaveLayout}
-          variant="outline"
-          className="transition-all duration-200"
-        >
-          レイアウト保存
-        </Button>
-        {/* ライトモード/ダークモード */}
-        <ThemeToggleButton />
-      </div>
-
-      <ResponsiveGridLayout
-        // isDragging状態に応じてクラスを動的に追加
-        className={`layout ${isDragging ? "dragging" : ""}`}
-        cols={COLS}
-        rowHeight={16}
-        onLayoutChange={handleLayoutChange}
-        draggableCancel=".chart-area"
-        resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
-        compactType="vertical"
-        preventCollision={false}
-        // ドラッグ/リサイズ開始/終了時にisDragging状態を更新
-        onDragStart={() => setIsDragging(true)}
-        onDragStop={() => setIsDragging(false)}
-        onResizeStart={() => setIsDragging(true)}
-        onResizeStop={() => setIsDragging(false)}
-        // アイテム間のマージンとコンテナのパディングを0に設定
-        margin={[0, 0]}
-        containerPadding={[0, 0]}
+    <div className="h-screen flex flex-col bg-background">
+      <div
+        className={`transition-all duration-300 ease-in-out shrink-0 ${
+          isHeaderVisible ? "auto" : "h-0"
+        }`}
       >
-        {items.map((item) => (
-          <div
-            key={item.i}
-            data-grid={{
-              i: item.i,
-              x: item.x,
-              y: item.y,
-              w: item.w,
-              h: item.h,
-            }}
-            className="bg-card rounded-lg overflow-hidden border border-border shadow-lg flex flex-col"
-          >
-            <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">
-              <span className="flex-1 min-w-0 truncate">{item.label}</span>
-              <button
-                onClick={() => handleRemoveChart(item.i)}
-                className="w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                title="チャートを削除"
-              >
-                <span className="text-xl font-bold -translate-y-px">
-                  &times;
-                </span>
-              </button>
+        <div
+          className={`p-4 space-y-4 transition-opacity duration-300 overflow-hidden ${
+            isHeaderVisible ? "opacity-100" : "opacity-0"
+          }`}
+        >
+          {/* Row 1: Title and main actions */}
+          <div className="flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">KABUKAWA View</h1>
             </div>
-            <div className="flex-grow h-full relative">
-              {/* ChartWidget自体は常にドラッグキャンセル領域に配置 */}
-              <div className="chart-area h-full">
-                <ChartWidget
-                  symbol={item.symbol}
-                  interval={interval}
-                  label={item.label}
-                  chartType={chartType}
-                  theme={resolvedTheme as "light" | "dark"}
-                  options={widgetOptions}
-                />
-              </div>
-
-              {/* チャート操作が無効な時だけ、上に透明なオーバーレイを重ねてドラッグ操作を受け付ける */}
-              {!enableChartOperation && (
-                <div className="absolute inset-0 cursor-move" />
-              )}
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={handleSaveLayout}
+                variant="outline"
+                className="transition-all duration-200"
+              >
+                レイアウト保存
+              </Button>
+              <ThemeToggleButton />
             </div>
           </div>
-        ))}
-      </ResponsiveGridLayout>
+          {/* Row 2: Chart controls */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              {chartTypeOptions.map((option) => {
+                const IconComponent = iconMap[option.name];
+                return (
+                  <Button
+                    key={option.name}
+                    variant={
+                      chartType === option.name ? "default" : "secondary"
+                    }
+                    size="icon"
+                    onClick={() => setChartType(option.name)}
+                    title={option.label}
+                  >
+                    <IconComponent className="h-4 w-4" />
+                  </Button>
+                );
+              })}
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => setIsSettingsModalOpen(true)}
+                title="チャート設定"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+            </div>
+            <Separator orientation="vertical" />
+            {/* グループ2: 時間足 */}
+            <div className="flex items-center gap-1">
+              {intervalOptions.map((option) => (
+                <Button
+                  key={option.value}
+                  onClick={() => setInterval(option.value)}
+                  // 現在選択中の時間足と一致する場合のスタイルを追加
+                  variant={interval === option.value ? "default" : "secondary"}
+                  className="transition-all duration-200"
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+            <Separator orientation="vertical" />
+            {/* グループ3: 銘柄追加のプルダウンメニュー */}
+            <div className="ml-4 flex items-center gap-2">
+              <Button onClick={() => setIsSearchModalOpen(true)}>
+                <Search className="mr-2 h-4 w-4" />
+                銘柄を追加
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Select
+                onValueChange={(value) => {
+                  const selected = presetSymbols.find((s) => s.value === value);
+                  if (selected) {
+                    setSelectedSymbol(selected);
+                  }
+                }}
+                value={selectedSymbol?.value ?? ""}
+              >
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="一覧から選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {presetSymbols.map((symbol) => (
+                    <SelectItem key={symbol.value} value={symbol.value}>
+                      {symbol.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleAddChart}>追加</Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-grow relative">
+        {isHeaderVisible ? (
+          <Button
+            onClick={() => setIsHeaderVisible(false)}
+            className="absolute top-2 left-2 z-50 opacity-50 hover:opacity-100 transition-opacity duration-200"
+            size="icon"
+            variant="outline"
+            title="ヘッダーを非表示"
+          >
+            <ChevronUp className="h-5 w-5" />
+          </Button>
+        ) : (
+          <Button
+            onClick={() => setIsHeaderVisible(true)}
+            className="absolute top-2 left-2 z-50 opacity-50 hover:opacity-100 transition-opacity duration-200"
+            size="icon"
+            variant="outline"
+            title="ヘッダーを表示"
+          >
+            <ChevronDown className="h-5 w-5" />
+          </Button>
+        )}
+        <div className="absolute inset-0">
+          <ResponsiveGridLayout
+            // isDragging状態に応じてクラスを動的に追加
+            className={`layout ${isDragging ? "dragging" : ""}`}
+            cols={COLS}
+            rowHeight={16}
+            onLayoutChange={handleLayoutChange}
+            draggableCancel=".chart-area"
+            resizeHandles={["s", "w", "e", "n", "sw", "nw", "se", "ne"]}
+            compactType="vertical"
+            preventCollision={false}
+            // ドラッグ/リサイズ開始/終了時にisDragging状態を更新
+            onDragStart={() => setIsDragging(true)}
+            onDragStop={() => setIsDragging(false)}
+            onResizeStart={() => setIsDragging(true)}
+            onResizeStop={() => setIsDragging(false)}
+            // アイテム間のマージンとコンテナのパディングを0に設定
+            margin={[0, 0]}
+            containerPadding={[0, 0]}
+          >
+            {items.map((item) => (
+              <div
+                key={item.i}
+                data-grid={{
+                  i: item.i,
+                  x: item.x,
+                  y: item.y,
+                  w: item.w,
+                  h: item.h,
+                }}
+                className="bg-card rounded-lg overflow-hidden border border-border shadow-lg flex flex-col"
+              >
+                <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">
+                  <span className="flex-1 min-w-0 truncate">{item.label}</span>
+                  <button
+                    onClick={() => handleRemoveChart(item.i)}
+                    className="w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    title="チャートを削除"
+                  >
+                    <span className="text-xl font-bold -translate-y-px">
+                      &times;
+                    </span>
+                  </button>
+                </div>
+                <div className="flex-grow h-full relative">
+                  {/* ChartWidget自体は常にドラッグキャンセル領域に配置 */}
+                  <div className="chart-area h-full">
+                    <ChartWidget
+                      symbol={item.symbol}
+                      interval={interval}
+                      label={item.label}
+                      chartType={chartType}
+                      theme={resolvedTheme as "light" | "dark"}
+                      options={widgetOptions}
+                    />
+                  </div>
+
+                  {/* チャート操作が無効な時だけ、上に透明なオーバーレイを重ねてドラッグ操作を受け付ける */}
+                  {!enableChartOperation && (
+                    <div className="absolute inset-0 cursor-move" />
+                  )}
+                </div>
+              </div>
+            ))}
+          </ResponsiveGridLayout>
+        </div>
+      </div>
       {/* --- モーダルコンポーネントを描画 --- */}
       <ChartSettingsModal
         isOpen={isSettingsModalOpen}
