@@ -23,80 +23,73 @@ type Props = {
 const ChartWidget: React.FC<Props> = memo(
   ({ symbol, interval, label, chartType, theme = "light", options }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    // ウィジェットのインスタンスをrefで保持
+    const widgetRef = useRef<TradingViewWidget | null>(null);
     // 安定した一意なIDを生成する
     const widgetId = `tradingview_${symbol.replace(/[:]/g, "_")}`;
 
     useEffect(() => {
-      const currentContainer = containerRef.current;
-      // containerRef.current が存在することを確認
-      if (!currentContainer) {
-        return;
+      const createWidget = () => {
+        if (!containerRef.current || !window.TradingView) return;
+
+        // 既存のウィジェットがあれば削除
+        if (widgetRef.current) {
+          widgetRef.current.remove();
+          widgetRef.current = null;
+        }
+
+        const baseOptions = {
+          autosize: true,
+          interval: interval,
+          symbol: symbol,
+          timezone: "Asia/Tokyo",
+          theme: theme,
+          locale: "ja",
+          enable_publishing: false,
+          allow_symbol_change: true,
+          container_id: widgetId,
+        };
+
+        let specificOptions = {};
+        switch (chartType) {
+          case "line":
+            specificOptions = { style: "3" };
+            break;
+          case "bars":
+            specificOptions = { style: "0" };
+            break;
+          case "candles":
+          default:
+            specificOptions = { style: "1" };
+            break;
+        }
+
+        // 新しいウィジェットを作成し、refに保存
+        widgetRef.current = new window.TradingView.widget({
+          ...baseOptions,
+          ...specificOptions,
+          ...options,
+        });
+      };
+
+      // TradingViewスクリプトが読み込まれていればウィジェットを作成
+      if (window.TradingView) {
+        createWidget();
+      } else {
+        // スクリプトがなければ読み込む
+        const script = document.createElement("script");
+        script.src = "https://s3.tradingview.com/tv.js";
+        script.type = "text/javascript";
+        script.async = true;
+        script.onload = createWidget; // 読み込み完了後にウィジェット作成
+        document.body.appendChild(script);
       }
 
-      // TradingViewウィジェットのインスタンスを格納する変数
-      let widget: TradingViewWidget | null = null;
-
-      const script = document.createElement("script");
-      script.src = "https://s3.tradingview.com/tv.js";
-      script.type = "text/javascript";
-      script.async = true;
-
-      script.onload = () => {
-        // スクリプト読み込み後に window.TradingView が存在するか、
-        // そしてコンテナがまだ存在するかを再度確認
-        if (window.TradingView && containerRef.current) {
-          const baseOptions = {
-            autosize: true,
-            interval: interval,
-            symbol: symbol,
-            timezone: "Asia/Tokyo",
-            theme: theme,
-            locale: "ja",
-            enable_publishing: false,
-            allow_symbol_change: true,
-            container_id: widgetId,
-          };
-
-          let specificOptions = {};
-          switch (chartType) {
-            case "line":
-              specificOptions = {
-                style: "3",
-              };
-              break;
-            case "bars":
-              specificOptions = {
-                style: "0",
-              };
-              break;
-            case "candles":
-            default:
-              specificOptions = {
-                style: "1",
-              };
-              break;
-          }
-
-          // widgetインスタンスを保存
-          widget = new window.TradingView.widget({
-            ...baseOptions,
-            ...specificOptions,
-            ...options,
-          });
-        }
-      };
-      currentContainer.innerHTML = "";
-      currentContainer.appendChild(script);
-
-      // クリーンアップ関数
+      // コンポーネントのアンマウント時に実行されるクリーンアップ関数
       return () => {
-        // TradingViewウィジェットのremoveメソッドを呼び出す
-        if (widget && typeof widget.remove === "function") {
-          widget.remove();
-        }
-        // useEffectの実行時にキャプチャしたrefの値を使い、コンテナをクリーンアップ
-        if (currentContainer) {
-          currentContainer.innerHTML = "";
+        if (widgetRef.current) {
+          widgetRef.current.remove();
+          widgetRef.current = null;
         }
       };
     }, [symbol, interval, label, chartType, widgetId, theme, options]);
