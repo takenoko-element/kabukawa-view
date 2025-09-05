@@ -344,7 +344,7 @@ export const fxSymbols = [
 // インデックス
 export const indexSymbols = [
   { label: "日経平均 (Nikkei 225)", value: "NIKKEI225" },
-  { label: "TOPIX", value: "TOPIX" },
+  { label: "TOPIX", value: "IG:TOPIX" },
   { label: "S&P 500", value: "VANTAGE:SP500" },
   { label: "NASDAQ 100", value: "NASDAQ:NDX" },
   { label: "ダウ平均 (DJI)", value: "DJI" },
