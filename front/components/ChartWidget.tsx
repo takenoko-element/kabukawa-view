@@ -4,7 +4,11 @@ import React, { useEffect, useRef, memo } from "react";
 
 import { ChartType } from "@/constants/chartTypes";
 import { Interval } from "@/constants/intervals";
-import { ChartOptions } from "@/types/ChartOptions";
+import { TradingViewOptions } from "@/types/ChartOptions";
+
+interface TradingViewWidget {
+  remove: () => void;
+}
 
 type Props = {
   symbol: string;
@@ -12,7 +16,7 @@ type Props = {
   label: string;
   chartType: ChartType;
   theme?: "light" | "dark";
-  options: Omit<ChartOptions, "enable_chart_operation">;
+  options: TradingViewOptions;
 };
 
 // TradingViewウィジェットを描画するコンポーネント
@@ -23,13 +27,14 @@ const ChartWidget: React.FC<Props> = memo(
     const widgetId = `tradingview_${symbol.replace(/[:]/g, "_")}`;
 
     useEffect(() => {
+      const currentContainer = containerRef.current;
       // containerRef.current が存在することを確認
-      if (!containerRef.current) {
+      if (!currentContainer) {
         return;
       }
 
-      // 毎回コンテナをクリアして、新しいウィジェットを描画する
-      containerRef.current.innerHTML = "";
+      // TradingViewウィジェットのインスタンスを格納する変数
+      let widget: TradingViewWidget | null = null;
 
       const script = document.createElement("script");
       script.src = "https://s3.tradingview.com/tv.js";
@@ -72,14 +77,28 @@ const ChartWidget: React.FC<Props> = memo(
               break;
           }
 
-          new window.TradingView.widget({
+          // widgetインスタンスを保存
+          widget = new window.TradingView.widget({
             ...baseOptions,
             ...specificOptions,
             ...options,
           });
         }
       };
-      containerRef.current.appendChild(script);
+      currentContainer.innerHTML = "";
+      currentContainer.appendChild(script);
+
+      // クリーンアップ関数
+      return () => {
+        // TradingViewウィジェットのremoveメソッドを呼び出す
+        if (widget && typeof widget.remove === "function") {
+          widget.remove();
+        }
+        // useEffectの実行時にキャプチャしたrefの値を使い、コンテナをクリーンアップ
+        if (currentContainer) {
+          currentContainer.innerHTML = "";
+        }
+      };
     }, [symbol, interval, label, chartType, widgetId, theme, options]);
 
     return (

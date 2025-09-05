@@ -1,5 +1,4 @@
 // front/types/ChartOptions.ts
-
 // TradingViewウィジェットに直接渡すオプションの型
 export type TradingViewOptions = {
   hide_side_toolbar: boolean;
