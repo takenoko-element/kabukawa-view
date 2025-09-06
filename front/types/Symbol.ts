@@ -2,4 +2,5 @@
 export type Symbol = {
   label: string;
   value: string;
+  category: string;
 };

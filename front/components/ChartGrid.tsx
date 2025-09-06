@@ -32,6 +32,17 @@ const ChartGrid = ({
   enableChartOperation,
 }: Props) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [removingItemId, setRemovingItemId] = useState<string | null>(null);
+
+  const handleRemoveRequest = (itemId: string) => {
+    setRemovingItemId(itemId);
+  };
+
+  const handleCleanupComplete = (itemId: string) => {
+    onRemoveChart(itemId);
+    setRemovingItemId(null);
+  };
+
   return (
     <ResponsiveGridLayout
       className={`layout ${isDragging ? "dragging" : ""}`}
@@ -64,9 +75,10 @@ const ChartGrid = ({
           <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">
             <span className="flex-1 min-w-0 truncate">{item.label}</span>
             <button
-              onClick={() => onRemoveChart(item.i)}
+              onClick={() => handleRemoveRequest(item.i)}
               className="w-6 h-6 flex items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
               title="チャートを削除"
+              disabled={removingItemId !== null}
             >
               <span className="text-xl font-bold -translate-y-px">&times;</span>
             </button>
@@ -74,12 +86,13 @@ const ChartGrid = ({
           <div className="flex-grow h-full relative">
             <div className="chart-area h-full">
               <ChartWidget
-                symbol={item.symbol}
+                item={item}
                 interval={interval}
-                label={item.label}
                 chartType={chartType}
                 theme={theme}
                 options={widgetOptions}
+                isRemoving={removingItemId === item.i}
+                onCleanupComplete={handleCleanupComplete}
               />
             </div>
             {!enableChartOperation && (
