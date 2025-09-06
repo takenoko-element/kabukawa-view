@@ -2,6 +2,8 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import axios from "axios";
 import { Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,12 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
 import { Symbol } from "@/types/Symbol";
-import { nikkei225Symbols } from "@/constants/symbols";
-import { usStockSymbols } from "@/constants/symbols";
-import { indexSymbols } from "@/constants/symbols";
-import { fxSymbols } from "@/constants/symbols";
+
+const API_URL = "http://localhost:8000";
 
 type Props = {
   isOpen: boolean;
@@ -30,13 +29,18 @@ type Props = {
   addedSymbols: string[];
 };
 
-const TABS = {
-  japan: { label: "日本株", data: nikkei225Symbols },
-  us: { label: "米国株", data: usStockSymbols },
-  index: { label: "インデックス", data: indexSymbols },
-  fx: { label: "FX", data: fxSymbols },
+const TAB_DEFINITIONS = {
+  japan: { label: "日本株" },
+  us: { label: "米国株" },
+  index: { label: "インデックス" },
+  fx: { label: "FX" },
 };
-type TabKey = keyof typeof TABS;
+type TabKey = keyof typeof TAB_DEFINITIONS;
+
+const fetchSymbols = async (): Promise<Symbol[]> => {
+  const { data } = await axios.get(`${API_URL}/api/symbols`);
+  return data;
+};
 
 export const SymbolSearchModal = ({
   isOpen,
@@ -48,17 +52,44 @@ export const SymbolSearchModal = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSymbols, setSelectedSymbols] = useState<Symbol[]>([]);
 
+  const { data: allSymbols, isLoading } = useQuery({
+    queryKey: ["symbols"],
+    queryFn: fetchSymbols,
+  });
+
+  // カテゴリごとに銘柄をグループ化
+  const symbolsByCategory = useMemo(() => {
+    const groupedSymbols: Record<TabKey, Symbol[]> = {
+      japan: [],
+      us: [],
+      index: [],
+      fx: [],
+    };
+
+    if (!allSymbols) {
+      return groupedSymbols;
+    }
+
+    for (const symbol of allSymbols) {
+      const category = symbol.category as TabKey;
+      if (groupedSymbols[category]) {
+        groupedSymbols[category].push(symbol);
+      }
+    }
+    return groupedSymbols;
+  }, [allSymbols]);
+
   const filteredSymbols = useMemo(() => {
-    const data = TABS[activeTab].data;
+    const data = symbolsByCategory[activeTab] || [];
     if (!searchQuery) {
       return data;
     }
     return data.filter(
-      (symbol) =>
+      (symbol: Symbol) =>
         symbol.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
         symbol.value.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, symbolsByCategory]);
 
   const handleSelectSymbol = (symbol: Symbol) => {
     // 既にダッシュボードに追加されているシンボルは選択不可にする
@@ -145,7 +176,7 @@ export const SymbolSearchModal = ({
               className="flex flex-col flex-grow min-h-0"
             >
               <TabsList className="gap-3">
-                {Object.entries(TABS).map(([key, { label }]) => (
+                {Object.entries(TAB_DEFINITIONS).map(([key, { label }]) => (
                   <TabsTrigger key={key} value={key}>
                     {label}
                   </TabsTrigger>
@@ -154,33 +185,39 @@ export const SymbolSearchModal = ({
 
               <TabsContent value={activeTab} className="flex-grow min-h-0 mt-2">
                 <ScrollArea className="h-full">
-                  {filteredSymbols.map((symbol) => {
-                    const isSelected = selectedSymbols.some(
-                      (s) => s.value === symbol.value
-                    );
-                    const isAlreadyAdded = addedSymbols.includes(symbol.value);
-                    return (
-                      <div
-                        key={symbol.value}
-                        onClick={() => handleSelectSymbol(symbol)}
-                        className={`flex items-center gap-4 p-2 pr-4 rounded-md ${
-                          isAlreadyAdded
-                            ? "opacity-50 cursor-not-allowed"
-                            : "cursor-pointer hover:bg-muted"
-                        } ${isSelected ? "bg-muted font-semibold" : ""}`}
-                      >
-                        <span className="w-20 text-sm text-muted-foreground">
-                          {symbol.value.split(":").pop()}
-                        </span>
-                        <span className="flex-grow truncate">
-                          {symbol.label}
-                        </span>
-                        {isAlreadyAdded && (
-                          <Badge variant="secondary">追加済み</Badge>
-                        )}
-                      </div>
-                    );
-                  })}
+                  {isLoading ? (
+                    <p className="text-center p-4">読み込み中...</p>
+                  ) : (
+                    filteredSymbols.map((symbol: Symbol) => {
+                      const isSelected = selectedSymbols.some(
+                        (s) => s.value === symbol.value
+                      );
+                      const isAlreadyAdded = addedSymbols.includes(
+                        symbol.value
+                      );
+                      return (
+                        <div
+                          key={symbol.value}
+                          onClick={() => handleSelectSymbol(symbol)}
+                          className={`flex items-center gap-4 p-2 pr-4 rounded-md ${
+                            isAlreadyAdded
+                              ? "opacity-50 cursor-not-allowed"
+                              : "cursor-pointer hover:bg-muted"
+                          } ${isSelected ? "bg-muted font-semibold" : ""}`}
+                        >
+                          <span className="w-20 text-sm text-muted-foreground">
+                            {symbol.value.split(":").pop()}
+                          </span>
+                          <span className="flex-grow truncate">
+                            {symbol.label}
+                          </span>
+                          {isAlreadyAdded && (
+                            <Badge variant="secondary">追加済み</Badge>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </ScrollArea>
               </TabsContent>
             </Tabs>

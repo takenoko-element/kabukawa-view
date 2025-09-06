@@ -13,10 +13,12 @@ import { HeaderToggleButton } from "./HeaderToggleButton";
 import { useLayout } from "@/hooks/useLayout";
 import { useChartSettings } from "@/hooks/useChartSettings";
 import { useDashboardModals } from "@/hooks/useDashboardModals";
+import { useTradingViewScript } from "@/hooks/useTradingViewScript";
 
 const Dashboard = () => {
   const { resolvedTheme } = useTheme();
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const scriptStatus = useTradingViewScript();
 
   const {
     items,
@@ -59,7 +61,16 @@ const Dashboard = () => {
     addMultipleCharts(symbols, defaultChartSize);
   };
 
-  if (isLoading) return <div className="text-center p-10">Loading...</div>;
+  // レイアウト読み込みとスクリプト読み込みの両方が完了するまでローディング表示
+  if (isLoading || scriptStatus !== "ready") {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p className="text-center p-10">
+          {isLoading ? "Loading Layout..." : "Loading Chart Library..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex flex-col bg-background">

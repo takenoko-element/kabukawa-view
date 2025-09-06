@@ -7,17 +7,19 @@ import { Layout } from "react-grid-layout";
 import { LayoutItem, Symbol } from "@/types";
 import { COLS } from "@/constants/cols";
 
+const API_URL = "http://localhost:8000";
+
 // APIから取得/APIへ送信するデータの型
 type LayoutData = LayoutItem[];
 
 // --- API通信の関数 ---
 const fetchLayout = async (): Promise<LayoutData> => {
-  const { data } = await axios.get("http://localhost:8000/api/layout");
+  const { data } = await axios.get(`${API_URL}/api/layout`);
   return data;
 };
 
 const saveLayoutApi = async (layout: LayoutData): Promise<void> => {
-  await axios.post("http://localhost:8000/api/layout", layout);
+  await axios.post(`${API_URL}/api/layout`, layout);
 };
 
 export const useLayout = () => {

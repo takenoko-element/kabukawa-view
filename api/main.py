@@ -1,52 +1,50 @@
 # api/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Dict, Any
+from sqlmodel import Session, select
+from typing import List
+
+from database import get_session
+from models import LayoutItem, Symbol
 
 app = FastAPI()
 
 # CORS設定（Next.jsからのアクセスを許可）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.jsの開発サーバー
+    allow_origins=["http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Pydanticモデルでデータの型を定義
-class ChartItem(BaseModel):
-    i: str      # アイテムの一意なID
-    x: int      # x座標 (グリッド単位)
-    y: int      # y座標 (グリッド単位)
-    w: int      # 幅 (グリッド単位)
-    h: int      # 高さ (グリッド単位)
-    symbol: str # 銘柄コード
-    label: str
-    chartType: str
+@app.get("/")
+def read_root():
+    return {"message": "Welcome to Kabukawa-View API"}
 
-# データベースの代わりとなるインメモリ変数
-# { "default": [ChartItem, ...] } のような形式で保存
-db: Dict[str, List[ChartItem]] = {
-    "default_layout": [
-        {"i": "a", "x": 0, "y": 0, "w": 24, "h": 18, "symbol": "NIKKEI225", "label": "日経平均 (Nikkei 225)", "chartType": "advanced"},
-        {"i": "b", "x": 24, "y": 0, "w": 24, "h": 18, "symbol": "FX:USDJPY", "label": "ドル/円 (USD/JPY)", "chartType": "advanced"},
-        {"i": "c", "x": 48, "y": 0, "w": 24, "h": 18, "symbol": "NASDAQ:AAPL", "label": "Apple", "chartType": "advanced"},
-    ]
-}
+# レイアウトを取得するエンドポイント
+@app.get("/api/layout", response_model=List[LayoutItem])
+def get_layout(session: Session = Depends(get_session)):
+    layout_items = session.exec(select(LayoutItem)).all()
+    return layout_items
 
-@app.get("/api/layout")
-def get_layout():
-    """保存されたレイアウト設定を取得する"""
-    return db.get("default_layout", [])
-
+# レイアウトを保存するエンドポイント
 @app.post("/api/layout")
-def save_layout(layout: List[ChartItem]):
-    """新しいレイアウト設定を保存する"""
-    print(f"Received layout: {layout}")
-    db["default_layout"] = layout
+def save_layout(layout_items: List[LayoutItem], session: Session = Depends(get_session)):
+    # 既存のレイアウトを全て削除
+    db_items = session.exec(select(LayoutItem)).all()
+    for item in db_items:
+        session.delete(item)
+    # 新しいレイアウトを追加
+    session.add_all(layout_items)
+    session.commit()
     return {"message": "Layout saved successfully"}
+
+# 銘柄リストを取得するエンドポイント
+@app.get("/api/symbols", response_model=List[Symbol])
+def get_symbols(session: Session = Depends(get_session)):
+    symbols = session.exec(select(Symbol)).all()
+    return symbols
 
 
 # 仮想環境の起動方法：
