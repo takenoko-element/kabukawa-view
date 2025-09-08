@@ -37,45 +37,39 @@ const ChartWidget: React.FC<Props> = memo(
     // 安定した一意なIDを生成する
     const widgetId = `tradingview_${item.symbol.replace(/[:]/g, "_")}`;
 
-    // [役割1: 削除処理] isRemovingがtrueになった時だけ実行されるフック
     useEffect(() => {
+      // isRemovingがtrueになったら、すぐにクリーンアップ完了を通知して処理を終了
       if (isRemoving) {
-        if (widgetRef.current) {
-          try {
-            widgetRef.current.remove();
-          } catch (error) {
-            console.error("Error removing TradingView widget:", error);
-          }
-          widgetRef.current = null;
-        }
         onCleanupComplete(item.i);
+        return;
       }
-    }, [isRemoving, item.i, onCleanupComplete]);
 
-    // [役割2: 描画・更新処理] isRemovingがfalseの時だけ実行されるフック
-    useEffect(() => {
       if (!containerRef.current || !window.TradingView) return;
 
-      // 既存のウィジェットがあれば削除
-      if (widgetRef.current) {
-        widgetRef.current.remove();
-        widgetRef.current = null;
-      }
+      const createWidget = () => {
+        if (widgetRef.current) {
+          widgetRef.current.remove();
+          widgetRef.current = null;
+        }
 
-      widgetRef.current = new window.TradingView.widget({
-        autosize: true,
-        interval: interval,
-        symbol: item.symbol,
-        timezone: "Asia/Tokyo",
-        theme: theme,
-        locale: "ja",
-        enable_publishing: false,
-        allow_symbol_change: true,
-        container_id: widgetId,
-        style: chartType === "line" ? "3" : chartType === "bars" ? "0" : "1",
-        ...options,
-      });
+        widgetRef.current = new window.TradingView.widget({
+          autosize: true,
+          interval: interval,
+          symbol: item.symbol,
+          timezone: "Asia/Tokyo",
+          theme: theme,
+          locale: "ja",
+          enable_publishing: false,
+          allow_symbol_change: true,
+          container_id: widgetId,
+          style: chartType === "line" ? "3" : chartType === "bars" ? "0" : "1",
+          ...options,
+        });
+      };
 
+      createWidget();
+
+      // コンポーネントがアンマウントされる時のクリーンアップ処理
       return () => {
         if (widgetRef.current) {
           try {
@@ -89,7 +83,17 @@ const ChartWidget: React.FC<Props> = memo(
           widgetRef.current = null;
         }
       };
-    }, [item.symbol, interval, chartType, theme, options, widgetId]);
+    }, [
+      isRemoving,
+      item.i,
+      onCleanupComplete,
+      item.symbol,
+      interval,
+      chartType,
+      theme,
+      options,
+      widgetId,
+    ]);
 
     return (
       <div

@@ -1,6 +1,14 @@
 # api/models.py
-from typing import Optional
-from sqlmodel import Field, SQLModel
+from typing import List, Optional
+from sqlmodel import Field, Relationship, SQLModel
+
+# Usersテーブルのモデル
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    user_id: str = Field(unique=True, index=True)
+    email: str
+
+    layouts: List["LayoutItem"] = Relationship(back_populates="user")
 
 # Symbolテーブルのモデル
 # SQLModelはPydanticを内包しているため、APIのレスポンスモデルとしても機能する
@@ -20,3 +28,6 @@ class LayoutItem(SQLModel, table=True):
     h: int
     symbol: str
     label: str
+
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    user: Optional[User] = Relationship(back_populates="layouts")
