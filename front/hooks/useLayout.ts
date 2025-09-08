@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Layout } from "react-grid-layout";
+import { useAuth } from "@clerk/nextjs";
+
 import { LayoutItem, Symbol } from "@/types";
 import { COLS } from "@/constants/cols";
 
@@ -12,23 +14,31 @@ const API_URL = "http://localhost:8000";
 // APIから取得/APIへ送信するデータの型
 type LayoutData = LayoutItem[];
 
-// --- API通信の関数 ---
-const fetchLayout = async (): Promise<LayoutData> => {
-  const { data } = await axios.get(`${API_URL}/api/layout`);
-  return data;
-};
-
-const saveLayoutApi = async (layout: LayoutData): Promise<void> => {
-  await axios.post(`${API_URL}/api/layout`, layout);
-};
-
 export const useLayout = () => {
   const queryClient = useQueryClient();
   const [items, setItems] = useState<LayoutItem[]>([]);
+  const { getToken } = useAuth();
+
+  // --- API通信の関数 ---
+  const fetchLayout = async (): Promise<LayoutData> => {
+    const token = await getToken();
+    const { data } = await axios.get(`${API_URL}/api/layout`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return data;
+  };
+
+  const saveLayoutApi = async (layout: LayoutData): Promise<void> => {
+    const token = await getToken();
+    await axios.post(`${API_URL}/api/layout`, layout, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  };
 
   const { data: initialLayout, isLoading } = useQuery({
     queryKey: ["layout"],
     queryFn: fetchLayout,
+    // enabled: !!getToken(),
   });
 
   useEffect(() => {

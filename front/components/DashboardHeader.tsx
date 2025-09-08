@@ -6,6 +6,8 @@ import {
   Settings,
   Search,
 } from "lucide-react";
+import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import ThemeToggleButton from "./ThemeToggleButton";
@@ -52,15 +54,25 @@ const DashboardHeader = ({
       >
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">KABUKAWA View</h1>
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={saveLayout}
-              variant="outline"
-              className="transition-all duration-200"
-            >
-              レイアウト保存
-            </Button>
+          <div className="flex items-center gap-4">
+            <SignedIn>
+              <Button
+                onClick={saveLayout}
+                variant="outline"
+                className="transition-all duration-200"
+              >
+                レイアウト保存
+              </Button>
+            </SignedIn>
             <ThemeToggleButton />
+            <SignedIn>
+              <UserButton />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <Button variant="outline">ログイン</Button>
+              </SignInButton>
+            </SignedOut>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
