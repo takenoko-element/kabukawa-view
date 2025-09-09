@@ -1,5 +1,5 @@
 // front/components/ChartGrid.tsx
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Responsive, WidthProvider } from "react-grid-layout";
 import ChartWidget from "./ChartWidget";
 import { LayoutItem } from "@/types";
@@ -38,10 +38,13 @@ const ChartGrid = ({
     setRemovingItemId(itemId);
   };
 
-  const handleCleanupComplete = (itemId: string) => {
-    onRemoveChart(itemId);
-    setRemovingItemId(null);
-  };
+  const handleCleanupComplete = useCallback(
+    (itemId: string) => {
+      onRemoveChart(itemId);
+      setRemovingItemId(null);
+    },
+    [onRemoveChart]
+  );
 
   return (
     <ResponsiveGridLayout
