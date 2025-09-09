@@ -6,6 +6,7 @@ import axios from "axios";
 import { Layout } from "react-grid-layout";
 import { useAuth } from "@clerk/nextjs";
 
+import { toast } from "sonner";
 import { LayoutItem, Symbol } from "@/types";
 import { COLS } from "@/constants/cols";
 
@@ -51,7 +52,11 @@ export const useLayout = () => {
     mutationFn: saveLayoutApi,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["layout"] });
-      console.log("Layout saved!");
+      toast.success("レイアウトを保存しました");
+    },
+    onError: (error) => {
+      console.error("Layout save failed:", error);
+      toast.error("レイアウトの保存に失敗しました");
     },
   });
 
