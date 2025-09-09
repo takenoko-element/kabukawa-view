@@ -115,17 +115,35 @@ def save_layout(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 既存のレイアウトを全て削除
-    db_items = session.exec(select(LayoutItem).where(LayoutItem.user_id == user.id)).all()
-    for item in db_items:
-        session.delete(item)
+    # 既存のレイアウトをIDをキーにした辞書に変換
+    db_items_dict = {item.i: item for item in user.layouts}
+    # フロントから送られてきたレイアウトをIDをキーにした辞書に変換
+    incoming_items_dict = {item.i: item for item in layout_items}
 
-    # 新しいレイアウトを追加
-    for item_data in layout_items:
-        # PydanticモデルからSQLModelインスタンスへの変換
-        new_item = LayoutItem.model_validate(item_data)
-        new_item.user = user
-        session.add(new_item)
+    # 1. 更新と追加
+    for i, incoming_item in incoming_items_dict.items():
+        db_item = db_items_dict.get(i)
+        if db_item:
+            # --- 既存アイテムの更新 ---
+            db_item.x = incoming_item.x
+            db_item.y = incoming_item.y
+            db_item.w = incoming_item.w
+            db_item.h = incoming_item.h
+            # ラベルやシンボルも変更される可能性があるなら、それらも更新
+            db_item.symbol = incoming_item.symbol
+            db_item.label = incoming_item.label
+            session.add(db_item)
+        else:
+            # --- 新規アイテムの追加 ---
+            new_item = LayoutItem.model_validate(incoming_item)
+            new_item.user = user
+            session.add(new_item)
+
+    # 2. 削除
+    for i, db_item in db_items_dict.items():
+        if i not in incoming_items_dict:
+            # --- 存在しないアイテムの削除 ---
+            session.delete(db_item)
 
     session.commit()
     return {"message": "Layout saved successfully"}
