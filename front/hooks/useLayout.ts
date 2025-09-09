@@ -93,7 +93,7 @@ export const useLayout = () => {
     []
   );
 
-  const handleLayoutChange = (newLayout: Layout[]) => {
+  const handleLayoutChange = useCallback((newLayout: Layout[]) => {
     setItems((currentItems) => {
       const layoutMap = new Map(newLayout.map((l) => [l.i, l]));
       return currentItems.map((item) => {
@@ -110,7 +110,7 @@ export const useLayout = () => {
         return item;
       });
     });
-  };
+  }, []);
 
   const saveLayout = () => {
     mutation.mutate(items);
@@ -139,9 +139,11 @@ export const useLayout = () => {
     setItems((prevItems) => [...prevItems, ...newItems]);
   };
 
-  const removeChart = (itemIdToRemove: string) => {
-    setItems(items.filter((item) => item.i !== itemIdToRemove));
-  };
+  const removeChart = useCallback((itemIdToRemove: string) => {
+    setItems((prevItems) =>
+      prevItems.filter((item) => item.i !== itemIdToRemove)
+    );
+  }, []);
 
   return {
     items,
