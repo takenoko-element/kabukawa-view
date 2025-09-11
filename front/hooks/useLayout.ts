@@ -3,21 +3,22 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
-import { Layout } from "react-grid-layout";
+import { Layout, Layouts as ReactGridLayouts } from "react-grid-layout";
 import { useAuth } from "@clerk/nextjs";
-
 import { toast } from "sonner";
-import { LayoutItem, Symbol } from "@/types";
+
+import { LayoutItem, Symbol, Layouts } from "@/types";
 import { COLS } from "@/constants/cols";
+import { DefaultChartSizes } from "@/types";
 
 const API_URL = "http://localhost:8000";
 
 // APIから取得/APIへ送信するデータの型
-type LayoutData = LayoutItem[];
+type LayoutData = Layouts;
 
-export const useLayout = () => {
+export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
   const queryClient = useQueryClient();
-  const [items, setItems] = useState<LayoutItem[]>([]);
+  const [layouts, setLayouts] = useState<Layouts>({});
   const { getToken } = useAuth();
 
   // --- API通信の関数 ---
@@ -26,32 +27,33 @@ export const useLayout = () => {
     const { data } = await axios.get(`${API_URL}/api/layout`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return data;
+    // APIからのレスポンスが空の場合、空のオブジェクトを返す
+    return data && Object.keys(data).length > 0 ? data : {};
   };
 
-  const saveLayoutApi = async (layout: LayoutData): Promise<void> => {
+  const saveLayoutApi = async (layouts: LayoutData): Promise<void> => {
     const token = await getToken();
-    await axios.post(`${API_URL}/api/layout`, layout, {
+    await axios.post(`${API_URL}/api/layout`, layouts, {
       headers: { Authorization: `Bearer ${token}` },
     });
   };
 
-  const { data: initialLayout, isLoading } = useQuery({
-    queryKey: ["layout"],
+  const { data: initialLayouts, isLoading } = useQuery({
+    queryKey: ["layouts"],
     queryFn: fetchLayout,
     // enabled: !!getToken(),
   });
 
   useEffect(() => {
-    if (initialLayout) {
-      setItems(initialLayout);
+    if (initialLayouts) {
+      setLayouts(initialLayouts);
     }
-  }, [initialLayout]);
+  }, [initialLayouts]);
 
   const mutation = useMutation({
     mutationFn: saveLayoutApi,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["layout"] });
+      queryClient.invalidateQueries({ queryKey: ["layouts"] });
       toast.success("レイアウトを保存しました");
     },
     onError: (error) => {
@@ -60,21 +62,22 @@ export const useLayout = () => {
     },
   });
 
+  const items = useMemo(() => layouts.lg || [], [layouts]);
   const addedSymbols = useMemo(() => items.map((item) => item.symbol), [items]);
 
   const findNextAvailablePosition = useCallback(
     (
       layout: LayoutItem[],
       itemWidth: number,
-      itemHeight: number
+      itemHeight: number,
+      cols: number
     ): { x: number; y: number } => {
-      const cols = COLS.lg; // 最大のcolsを基準に計算
       let maxY = 0;
       layout.forEach((item) => {
         maxY = Math.max(maxY, item.y + item.h);
       });
 
-      for (let y = 0; y < maxY + itemHeight; y++) {
+      for (let y = 0; y <= maxY; y++) {
         for (let x = 0; x <= cols - itemWidth; x++) {
           let isSpaceAvailable = true;
           for (const item of layout) {
@@ -98,61 +101,94 @@ export const useLayout = () => {
     []
   );
 
-  const handleLayoutChange = useCallback((newLayout: Layout[]) => {
-    setItems((currentItems) => {
-      const layoutMap = new Map(newLayout.map((l) => [l.i, l]));
-      return currentItems.map((item) => {
-        const layoutUpdate = layoutMap.get(item.i);
-        if (layoutUpdate) {
-          return {
-            ...item,
-            x: layoutUpdate.x,
-            y: layoutUpdate.y,
-            w: layoutUpdate.w,
-            h: layoutUpdate.h,
-          };
+  const handleLayoutChange = useCallback(
+    (_: Layout[], allNewLayouts: ReactGridLayouts) => {
+      setLayouts((currentLayouts) => {
+        const allItems = currentLayouts.lg || [];
+        const updatedLayouts: Layouts = {};
+
+        for (const breakpoint in allNewLayouts) {
+          updatedLayouts[breakpoint] = allNewLayouts[breakpoint].map(
+            (newLayoutItem) => {
+              const originalItem = allItems.find(
+                (item) => item.i === newLayoutItem.i
+              );
+              return {
+                ...newLayoutItem,
+                symbol: originalItem?.symbol || "",
+                label: originalItem?.label || "",
+              };
+            }
+          );
         }
-        return item;
+        return { ...currentLayouts, ...updatedLayouts };
       });
-    });
-  }, []);
+    },
+    []
+  );
 
   const saveLayout = () => {
-    mutation.mutate(items);
+    mutation.mutate(layouts);
   };
 
-  const addMultipleCharts = (
-    symbols: Symbol[],
-    defaultChartSize: { w: number; h: number }
-  ) => {
-    const layoutForPlacement = [...items];
-    const newItems = symbols.map((symbol) => {
-      const { w, h } = defaultChartSize;
-      const { x, y } = findNextAvailablePosition(layoutForPlacement, w, h);
-      const newItem: LayoutItem = {
-        i: `${symbol.value}_${new Date().getTime()}_${Math.random()}`,
-        x,
-        y,
-        w,
-        h,
-        symbol: symbol.value,
-        label: symbol.label,
-      };
-      layoutForPlacement.push(newItem);
-      return newItem;
+  const addMultipleCharts = (symbols: Symbol[]) => {
+    const symbolsToAdd = symbols.filter(
+      (symbol) => !addedSymbols.includes(symbol.value)
+    );
+    if (symbolsToAdd.length === 0) return;
+
+    setLayouts((prevLayouts) => {
+      const newLayouts = JSON.parse(JSON.stringify(prevLayouts)); // Deep copy
+      const breakpoints = Object.keys(COLS) as (keyof typeof COLS)[];
+
+      symbolsToAdd.forEach((symbol) => {
+        const uniqueId = `${
+          symbol.value
+        }_${new Date().getTime()}_${Math.random()}`;
+
+        breakpoints.forEach((bp) => {
+          if (!newLayouts[bp]) {
+            newLayouts[bp] = [];
+          }
+          const layoutForPlacement = newLayouts[bp];
+          const { w, h } = defaultChartSizes[bp];
+          const { x, y } = findNextAvailablePosition(
+            layoutForPlacement,
+            w,
+            h,
+            COLS[bp]
+          );
+          const newItem: LayoutItem = {
+            i: uniqueId,
+            x,
+            y,
+            w,
+            h,
+            symbol: symbol.value,
+            label: symbol.label,
+          };
+          newLayouts[bp].push(newItem);
+        });
+      });
+      return newLayouts;
     });
-    setItems((prevItems) => [...prevItems, ...newItems]);
   };
 
   const removeChart = useCallback((itemIdToRemove: string) => {
-    setItems((prevItems) =>
-      prevItems.filter((item) => item.i !== itemIdToRemove)
-    );
+    setLayouts((prevLayouts) => {
+      const newLayouts: Layouts = {};
+      for (const bp in prevLayouts) {
+        newLayouts[bp] = prevLayouts[bp].filter(
+          (item) => item.i !== itemIdToRemove
+        );
+      }
+      return newLayouts;
+    });
   }, []);
 
   return {
-    items,
-    setItems,
+    layouts,
+    items, // ChartGridのレンダリング用に 'lg' のアイテムを渡す
     isLoading,
     addedSymbols,
     handleLayoutChange,

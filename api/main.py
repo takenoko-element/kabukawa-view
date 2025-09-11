@@ -4,7 +4,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
-from typing import List
+from typing import List, Dict
 from pydantic import BaseModel
 import requests
 from jose import jwt, jwk
@@ -94,7 +94,7 @@ def read_root():
     return {"message": "Welcome to Kabukawa-View API"}
 
 # レイアウトを取得するエンドポイント
-@app.get("/api/layout", response_model=List[LayoutItem])
+@app.get("/api/layout", response_model=Dict[str, List[LayoutItem]])
 def get_layout(
     session: Session = Depends(get_session),
     clerk_user: dict = Depends(get_current_user)
@@ -102,12 +102,18 @@ def get_layout(
     user = session.exec(select(User).where(User.user_id == clerk_user["sub"])).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    return user.layouts
+
+    layouts: Dict[str, List[LayoutItem]] = {}
+    for item in user.layouts:
+        if item.breakpoint not in layouts:
+            layouts[item.breakpoint] = []
+        layouts[item.breakpoint].append(item)
+    return layouts
 
 # レイアウトを保存するエンドポイント
 @app.post("/api/layout")
 def save_layout(
-    layout_items: List[LayoutItem],
+    layouts: Dict[str, List[LayoutItem]],
     session: Session = Depends(get_session),
     clerk_user: dict = Depends(get_current_user)
 ):
@@ -115,34 +121,44 @@ def save_layout(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # 既存のレイアウトをIDをキーにした辞書に変換
-    db_items_dict = {item.i: item for item in user.layouts}
-    # フロントから送られてきたレイアウトをIDをキーにした辞書に変換
-    incoming_items_dict = {item.i: item for item in layout_items}
+    # DBに保存されている既存のアイテムを全て取得し、ユニークID(i)とbreakpointのタプルをキーにする
+    db_items_query = session.exec(select(LayoutItem).where(LayoutItem.user_id == user.id)).all()
+    db_items_dict = {(item.i, item.breakpoint): item for item in db_items_query}
+
+    # フロントから来たアイテムのキーをセットで保持
+    incoming_item_keys = set()
 
     # 1. 更新と追加
-    for i, incoming_item in incoming_items_dict.items():
-        db_item = db_items_dict.get(i)
-        if db_item:
-            # --- 既存アイテムの更新 ---
-            db_item.x = incoming_item.x
-            db_item.y = incoming_item.y
-            db_item.w = incoming_item.w
-            db_item.h = incoming_item.h
-            # ラベルやシンボルも変更される可能性があるなら、それらも更新
-            db_item.symbol = incoming_item.symbol
-            db_item.label = incoming_item.label
-            session.add(db_item)
-        else:
-            # --- 新規アイテムの追加 ---
-            new_item = LayoutItem.model_validate(incoming_item)
-            new_item.user = user
-            session.add(new_item)
+    for breakpoint, layout_items in layouts.items():
+        for incoming_item in layout_items:
+            item_key = (incoming_item.i, breakpoint)
+            incoming_item_keys.add(item_key)
+
+            db_item = db_items_dict.get(item_key)
+
+            if db_item:
+                # --- 既存アイテムの更新 ---
+                db_item.x = incoming_item.x
+                db_item.y = incoming_item.y
+                db_item.w = incoming_item.w
+                db_item.h = incoming_item.h
+                db_item.symbol = incoming_item.symbol
+                db_item.label = incoming_item.label
+                session.add(db_item)
+            else:
+                # --- 新規アイテムの追加 ---
+                # incoming_itemを辞書に変換し、breakpointを追加してから検証する
+                item_data = incoming_item.model_dump()
+                item_data['breakpoint'] = breakpoint
+
+                new_item = LayoutItem.model_validate(item_data)
+                new_item.user = user # userリレーションではなくuser_idを直接設定
+                session.add(new_item)
 
     # 2. 削除
-    for i, db_item in db_items_dict.items():
-        if i not in incoming_items_dict:
-            # --- 存在しないアイテムの削除 ---
+    # DBにあり、フロントから来ていないアイテムを削除
+    for key, db_item in db_items_dict.items():
+        if key not in incoming_item_keys:
             session.delete(db_item)
 
     session.commit()

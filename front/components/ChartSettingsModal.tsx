@@ -13,10 +13,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { AllChartSettings, TradingViewOptions } from "@/types/ChartOptions";
+import { AllChartSettings, TradingViewOptions } from "@/types";
 import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
 import { ScrollArea } from "./ui/scroll-area";
+import { COLS } from "@/constants/cols";
 
 type Props = {
   isOpen: boolean;
@@ -30,6 +31,7 @@ const SIZE_CONSTRAINTS = {
   w: { min: 8, max: 72 },
   h: { min: 9, max: 50 },
 };
+type Breakpoint = keyof typeof COLS;
 
 // オプションのラベルと説明を定義
 const displayOptionsMetadata = [
@@ -77,37 +79,41 @@ export const ChartSettingsModal = ({
 }: Props) => {
   // モーダル内での変更を一時的に保持するためのローカルstate
   const [localOptions, setLocalOptions] = useState(options);
-  const [errors, setErrors] = useState<{
-    default_w?: string;
-    default_h?: string;
-  }>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // バリデーションチェック
-  const validateOptions = useCallback((opts: typeof localOptions) => {
-    const newErrors: { default_w?: string; default_h?: string } = {};
-    const { default_w, default_h } = opts;
+  const validateOptions = useCallback((opts: AllChartSettings) => {
+    const newErrors: Record<string, string> = {};
+    const { defaultChartSizes } = opts;
 
-    // 幅(W)のバリデーション
-    if (default_w === undefined || String(default_w).trim() === "") {
-      newErrors.default_w = "数値を入力してください。";
-    } else if (isNaN(default_w)) {
-      newErrors.default_w = "無効な数値です。";
-    } else {
-      const c = SIZE_CONSTRAINTS.w;
-      if (default_w < c.min || default_w > c.max) {
-        newErrors.default_w = `${c.min}〜${c.max}の範囲で入力してください。`;
+    for (const bp in defaultChartSizes) {
+      const breakpoint = bp as Breakpoint;
+      const size = defaultChartSizes[breakpoint];
+      const maxW = COLS[breakpoint];
+
+      // 幅(W)のバリデーション
+      if (size.w === undefined || String(size.w).trim() === "") {
+        newErrors[`${breakpoint}_w`] = "数値を入力してください。";
+      } else if (isNaN(size.w)) {
+        newErrors[`${breakpoint}_w`] = "無効な数値です。";
+      } else if (size.w < SIZE_CONSTRAINTS.w.min || size.w > maxW) {
+        newErrors[
+          `${breakpoint}_w`
+        ] = `${SIZE_CONSTRAINTS.w.min}〜${maxW}の範囲で入力してください。`;
       }
-    }
 
-    // 高さ(H)のバリデーション
-    if (default_h === undefined || String(default_h).trim() === "") {
-      newErrors.default_h = "数値を入力してください。";
-    } else if (isNaN(default_h)) {
-      newErrors.default_h = "無効な数値です。";
-    } else {
-      const c = SIZE_CONSTRAINTS.h;
-      if (default_h < c.min || default_h > c.max) {
-        newErrors.default_h = `${c.min}〜${c.max}の範囲で入力してください。`;
+      // 高さ(H)のバリデーション
+      if (size.h === undefined || String(size.h).trim() === "") {
+        newErrors[`${breakpoint}_h`] = "数値を入力してください。";
+      } else if (isNaN(size.h)) {
+        newErrors[`${breakpoint}_h`] = "無効な数値です。";
+      } else if (
+        size.h < SIZE_CONSTRAINTS.h.min ||
+        size.h > SIZE_CONSTRAINTS.h.max
+      ) {
+        newErrors[
+          `${breakpoint}_h`
+        ] = `${SIZE_CONSTRAINTS.h.min}〜${SIZE_CONSTRAINTS.h.max}の範囲で入力してください。`;
       }
     }
     setErrors(newErrors);
@@ -126,7 +132,7 @@ export const ChartSettingsModal = ({
   // トグルスイッチの変更をハンドル
   const handleToggle = (key: keyof AllChartSettings, checked: boolean) => {
     // TradingViewのオプションは 'hide_...' が多いので、表示/非表示を反転させる
-    const value = key.startsWith("hide_") ? !checked : checked;
+    const value = (key as string).startsWith("hide_") ? !checked : checked;
     setLocalOptions((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -136,9 +142,22 @@ export const ChartSettingsModal = ({
   };
 
   // チャートサイズの変更
-  const handleSizeChange = (key: "default_w" | "default_h", value: string) => {
-    const numValue = value === "" ? undefined : Number(value);
-    setLocalOptions((prev) => ({ ...prev, [key]: numValue }));
+  const handleSizeChange = (
+    breakpoint: Breakpoint,
+    key: "w" | "h",
+    value: string
+  ) => {
+    const numValue = value === "" ? 0 : Number(value);
+    setLocalOptions((prev) => ({
+      ...prev,
+      defaultChartSizes: {
+        ...prev.defaultChartSizes,
+        [breakpoint]: {
+          ...prev.defaultChartSizes[breakpoint],
+          [key]: numValue,
+        },
+      },
+    }));
   };
 
   // エラーオブジェクトに何かしらのキーが存在するかどうかで、エラーの有無を判定
@@ -228,48 +247,55 @@ export const ChartSettingsModal = ({
                     新規追加時のチャートの幅(W)と高さ(H)を設定します。
                   </p>
                 </div>
-                <div className="grid grid-cols-2 gap-4 items-start pt-2">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="default_w">
-                      幅 (W: {SIZE_CONSTRAINTS.w.min}〜{SIZE_CONSTRAINTS.w.max})
-                    </Label>
-                    <Input
-                      id="default_w"
-                      type="number"
-                      placeholder="W"
-                      value={localOptions.default_w ?? ""}
-                      onChange={(e) =>
-                        handleSizeChange("default_w", e.target.value)
-                      }
-                      aria-invalid={!!errors.default_w}
-                    />
-                    {errors.default_w && (
-                      <p className="text-sm text-destructive">
-                        {errors.default_w}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="default_h">
-                      高さ (H: {SIZE_CONSTRAINTS.h.min}〜
-                      {SIZE_CONSTRAINTS.h.max})
-                    </Label>
-                    <Input
-                      id="default_h"
-                      type="number"
-                      placeholder="H"
-                      value={localOptions.default_h ?? ""}
-                      onChange={(e) =>
-                        handleSizeChange("default_h", e.target.value)
-                      }
-                      aria-invalid={!!errors.default_h}
-                    />
-                    {errors.default_h && (
-                      <p className="text-sm text-destructive">
-                        {errors.default_h}
-                      </p>
-                    )}
-                  </div>
+                <div className="grid grid-cols-1 gap-y-4">
+                  {(Object.keys(COLS) as Breakpoint[]).map((bp) => (
+                    <div
+                      key={bp}
+                      className="flex flex-col gap-2 rounded border p-3"
+                    >
+                      <Label className="font-semibold">
+                        {bp.toUpperCase()} (最大幅: {COLS[bp]})
+                      </Label>
+                      <div className="grid grid-cols-2 gap-4 items-start">
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`${bp}_w`}>幅 (W)</Label>
+                          <Input
+                            id={`${bp}_w`}
+                            type="number"
+                            placeholder="W"
+                            value={localOptions.defaultChartSizes[bp]?.w ?? ""}
+                            onChange={(e) =>
+                              handleSizeChange(bp, "w", e.target.value)
+                            }
+                            aria-invalid={!!errors[`${bp}_w`]}
+                          />
+                          {errors[`${bp}_w`] && (
+                            <p className="text-sm text-destructive">
+                              {errors[`${bp}_w`]}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <Label htmlFor={`${bp}_h`}>高さ (H)</Label>
+                          <Input
+                            id={`${bp}_h`}
+                            type="number"
+                            placeholder="H"
+                            value={localOptions.defaultChartSizes[bp]?.h ?? ""}
+                            onChange={(e) =>
+                              handleSizeChange(bp, "h", e.target.value)
+                            }
+                            aria-invalid={!!errors[`${bp}_h`]}
+                          />
+                          {errors[`${bp}_h`] && (
+                            <p className="text-sm text-destructive">
+                              {errors[`${bp}_h`]}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
