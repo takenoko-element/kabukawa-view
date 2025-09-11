@@ -14,25 +14,24 @@ export const useChartSettings = () => {
     hide_volume: false,
     withdateranges: false,
     enable_chart_operation: false,
-    default_w: 24,
-    default_h: 18,
+    defaultChartSizes: {
+      lg: { w: 24, h: 18 },
+      md: { w: 20, h: 18 },
+      sm: { w: 12, h: 18 },
+      xs: { w: 12, h: 18 },
+      xxs: { w: 12, h: 18 },
+    },
   });
 
   // TradingViewウィジェットに渡すオプションをメモ化
   const widgetOptions: TradingViewOptions = useMemo(() => {
-    const { enable_chart_operation, default_w, default_h, ...rest } =
+    const { enable_chart_operation, defaultChartSizes, ...rest } =
       chartSettings;
     return rest;
   }, [chartSettings]);
 
   const enableChartOperation = chartSettings.enable_chart_operation;
-  const defaultChartSize = useMemo(
-    () => ({
-      w: chartSettings.default_w || 24,
-      h: chartSettings.default_h || 18,
-    }),
-    [chartSettings.default_w, chartSettings.default_h]
-  );
+  const defaultChartSizes = chartSettings.defaultChartSizes;
 
   return {
     interval,
@@ -41,7 +40,7 @@ export const useChartSettings = () => {
     setChartType,
     widgetOptions,
     enableChartOperation,
-    defaultChartSize,
+    defaultChartSizes,
     chartSettings,
     setChartSettings,
   };

@@ -21,17 +21,6 @@ const Dashboard = () => {
   const scriptStatus = useTradingViewScript();
 
   const {
-    items,
-    // setItems,
-    isLoading,
-    addedSymbols,
-    handleLayoutChange,
-    saveLayout,
-    addMultipleCharts,
-    removeChart,
-  } = useLayout();
-
-  const {
     chartSettings,
     setChartSettings,
     interval,
@@ -40,8 +29,20 @@ const Dashboard = () => {
     setChartType,
     widgetOptions,
     enableChartOperation,
-    defaultChartSize,
+    defaultChartSizes,
   } = useChartSettings();
+
+  const {
+    layouts,
+    items,
+    // setItems,
+    isLoading,
+    addedSymbols,
+    handleLayoutChange,
+    saveLayout,
+    addMultipleCharts,
+    removeChart,
+  } = useLayout(defaultChartSizes);
 
   const {
     isSettingsModalOpen,
@@ -58,7 +59,7 @@ const Dashboard = () => {
   };
 
   const handleAddMultipleCharts = (symbols: Symbol[]) => {
-    addMultipleCharts(symbols, defaultChartSize);
+    addMultipleCharts(symbols);
   };
 
   // レイアウト読み込みとスクリプト読み込みの両方が完了するまでローディング表示
@@ -92,6 +93,7 @@ const Dashboard = () => {
         />
         <div className="absolute inset-0">
           <ChartGrid
+            layouts={layouts}
             items={items}
             onLayoutChange={handleLayoutChange}
             onRemoveChart={removeChart}

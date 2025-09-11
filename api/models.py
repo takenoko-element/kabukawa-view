@@ -21,13 +21,14 @@ class Symbol(SQLModel, table=True):
 # LayoutItemテーブルのモデル
 class LayoutItem(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    i: str = Field(unique=True, index=True)
+    i: str
     x: int
     y: int
     w: int
     h: int
     symbol: str
     label: str
+    breakpoint: str
 
     user_id: Optional[int] = Field(default=None, foreign_key="user.id")
     user: Optional[User] = Relationship(back_populates="layouts")

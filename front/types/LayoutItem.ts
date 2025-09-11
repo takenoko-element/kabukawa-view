@@ -1,11 +1,14 @@
 // front/types/LayoutItem.ts
+import { Layout } from "react-grid-layout";
+
 // グリッドレイアウトのアイテム
-export type LayoutItem = {
+export interface LayoutItem extends Layout {
   i: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
   symbol: string;
   label: string;
+}
+
+// 画面サイズごとのレイアウトを格納するオブジェクトの型
+export type Layouts = {
+  [key: string]: LayoutItem[];
 };

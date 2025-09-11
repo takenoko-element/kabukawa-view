@@ -1,16 +1,23 @@
 // front/components/ChartGrid.tsx
 import { useCallback, useState } from "react";
-import { Responsive, WidthProvider } from "react-grid-layout";
+import {
+  Responsive,
+  WidthProvider,
+  Layouts as ReactGridLayouts,
+} from "react-grid-layout";
 import ChartWidget from "./ChartWidget";
-import { LayoutItem } from "@/types";
+import { LayoutItem, TradingViewOptions, Layouts } from "@/types";
 import { COLS } from "@/constants/cols";
 import { Interval } from "@/constants/intervals";
 import { ChartType } from "@/constants/chartTypes";
-import { TradingViewOptions } from "@/types";
 
 type Props = {
+  layouts: Layouts;
   items: LayoutItem[];
-  onLayoutChange: (layout: ReactGridLayout.Layout[]) => void;
+  onLayoutChange: (
+    layout: ReactGridLayout.Layout[],
+    allLayouts: ReactGridLayouts
+  ) => void;
   onRemoveChart: (itemId: string) => void;
   interval: Interval;
   chartType: ChartType;
@@ -22,6 +29,7 @@ type Props = {
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 const ChartGrid = ({
+  layouts,
   items,
   onLayoutChange,
   onRemoveChart,
@@ -49,6 +57,7 @@ const ChartGrid = ({
   return (
     <ResponsiveGridLayout
       className={`layout ${isDragging ? "dragging" : ""}`}
+      layouts={layouts}
       cols={COLS}
       rowHeight={16}
       onLayoutChange={onLayoutChange}
@@ -66,13 +75,6 @@ const ChartGrid = ({
       {items.map((item) => (
         <div
           key={item.i}
-          data-grid={{
-            i: item.i,
-            x: item.x,
-            y: item.y,
-            w: item.w,
-            h: item.h,
-          }}
           className="bg-card rounded-lg overflow-hidden border border-border shadow-lg flex flex-col"
         >
           <div className="drag-handle flex items-center pr-2 bg-muted/50 text-muted-foreground">
