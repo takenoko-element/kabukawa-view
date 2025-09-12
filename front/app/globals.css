@@ -146,10 +146,39 @@
 /* ドラッグ中にグリッド線を表示 */
 .react-grid-layout.dragging {
   /* グリッドのサイズをrowHeightとcolsから計算した値に合わせる */
-  /* この値はDashboard.tsxのcolsとrowHeightに依存します */
-  background-size: calc(100% / 72) 16px;
+  /* xxsの列数 */
+  --grid-cols: 12;
+  background-size: calc(100% / var(--grid-cols)) 16px;
   background-image: linear-gradient(to right, #4b5563 1px, transparent 1px),
     linear-gradient(to bottom, #4b5563 1px, transparent 1px);
+}
+
+/* xs: 480px以上 */
+@media (min-width: 480px) {
+  .react-grid-layout.dragging {
+    --grid-cols: 24;
+  }
+}
+
+/* sm: 768px以上 */
+@media (min-width: 768px) {
+  .react-grid-layout.dragging {
+    --grid-cols: 36;
+  }
+}
+
+/* md: 1024px以上 */
+@media (min-width: 1024px) {
+  .react-grid-layout.dragging {
+    --grid-cols: 60;
+  }
+}
+
+/* lg: 1280px以上 */
+@media (min-width: 1280px) {
+  .react-grid-layout.dragging {
+    --grid-cols: 72;
+  }
 }
 
 /* ドラッグ時のプレースホルダーの設定 */

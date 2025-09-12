@@ -18,6 +18,7 @@ import { Input } from "./ui/input";
 import { Separator } from "./ui/separator";
 import { ScrollArea } from "./ui/scroll-area";
 import { COLS } from "@/constants/cols";
+import { useBreakpoint } from "@/hooks/useBreakpoint";
 
 type Props = {
   isOpen: boolean;
@@ -80,44 +81,50 @@ export const ChartSettingsModal = ({
   // モーダル内での変更を一時的に保持するためのローカルstate
   const [localOptions, setLocalOptions] = useState(options);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const currentBreakpoint = useBreakpoint();
 
   // バリデーションチェック
-  const validateOptions = useCallback((opts: AllChartSettings) => {
-    const newErrors: Record<string, string> = {};
-    const { defaultChartSizes } = opts;
+  const validateOptions = useCallback(
+    (opts: AllChartSettings) => {
+      const newErrors: Record<string, string> = {};
+      const { defaultChartSizes } = opts;
 
-    for (const bp in defaultChartSizes) {
-      const breakpoint = bp as Breakpoint;
-      const size = defaultChartSizes[breakpoint];
-      const maxW = COLS[breakpoint];
+      const bp = currentBreakpoint;
+      const size = defaultChartSizes[bp];
+      if (!size) {
+        setErrors({});
+        return;
+      }
+      const maxW = COLS[bp];
 
       // 幅(W)のバリデーション
       if (size.w === undefined || String(size.w).trim() === "") {
-        newErrors[`${breakpoint}_w`] = "数値を入力してください。";
+        newErrors[`${bp}_w`] = "数値を入力してください。";
       } else if (isNaN(size.w)) {
-        newErrors[`${breakpoint}_w`] = "無効な数値です。";
+        newErrors[`${bp}_w`] = "無効な数値です。";
       } else if (size.w < SIZE_CONSTRAINTS.w.min || size.w > maxW) {
         newErrors[
-          `${breakpoint}_w`
+          `${bp}_w`
         ] = `${SIZE_CONSTRAINTS.w.min}〜${maxW}の範囲で入力してください。`;
       }
 
       // 高さ(H)のバリデーション
       if (size.h === undefined || String(size.h).trim() === "") {
-        newErrors[`${breakpoint}_h`] = "数値を入力してください。";
+        newErrors[`${bp}_h`] = "数値を入力してください。";
       } else if (isNaN(size.h)) {
-        newErrors[`${breakpoint}_h`] = "無効な数値です。";
+        newErrors[`${bp}_h`] = "無効な数値です。";
       } else if (
         size.h < SIZE_CONSTRAINTS.h.min ||
         size.h > SIZE_CONSTRAINTS.h.max
       ) {
         newErrors[
-          `${breakpoint}_h`
+          `${bp}_h`
         ] = `${SIZE_CONSTRAINTS.h.min}〜${SIZE_CONSTRAINTS.h.max}の範囲で入力してください。`;
       }
-    }
-    setErrors(newErrors);
-  }, []);
+      setErrors(newErrors);
+    },
+    [currentBreakpoint]
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -248,54 +255,69 @@ export const ChartSettingsModal = ({
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-y-4">
-                  {(Object.keys(COLS) as Breakpoint[]).map((bp) => (
-                    <div
-                      key={bp}
-                      className="flex flex-col gap-2 rounded border p-3"
-                    >
-                      <Label className="font-semibold">
-                        {bp.toUpperCase()} (最大幅: {COLS[bp]})
-                      </Label>
-                      <div className="grid grid-cols-2 gap-4 items-start">
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor={`${bp}_w`}>幅 (W)</Label>
-                          <Input
-                            id={`${bp}_w`}
-                            type="number"
-                            placeholder="W"
-                            value={localOptions.defaultChartSizes[bp]?.w ?? ""}
-                            onChange={(e) =>
-                              handleSizeChange(bp, "w", e.target.value)
-                            }
-                            aria-invalid={!!errors[`${bp}_w`]}
-                          />
-                          {errors[`${bp}_w`] && (
-                            <p className="text-sm text-destructive">
-                              {errors[`${bp}_w`]}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <Label htmlFor={`${bp}_h`}>高さ (H)</Label>
-                          <Input
-                            id={`${bp}_h`}
-                            type="number"
-                            placeholder="H"
-                            value={localOptions.defaultChartSizes[bp]?.h ?? ""}
-                            onChange={(e) =>
-                              handleSizeChange(bp, "h", e.target.value)
-                            }
-                            aria-invalid={!!errors[`${bp}_h`]}
-                          />
-                          {errors[`${bp}_h`] && (
-                            <p className="text-sm text-destructive">
-                              {errors[`${bp}_h`]}
-                            </p>
-                          )}
-                        </div>
+                  <div
+                    key={currentBreakpoint}
+                    className="flex flex-col gap-2 rounded border p-3"
+                  >
+                    <Label className="font-semibold">
+                      現在の画面サイズ: {currentBreakpoint.toUpperCase()}{" "}
+                      (最大幅: {COLS[currentBreakpoint]})
+                    </Label>
+                    <div className="grid grid-cols-2 gap-4 items-start">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`${currentBreakpoint}_w`}>幅 (W)</Label>
+                        <Input
+                          id={`${currentBreakpoint}_w`}
+                          type="number"
+                          placeholder="W"
+                          value={
+                            localOptions.defaultChartSizes[currentBreakpoint]
+                              ?.w ?? ""
+                          }
+                          onChange={(e) =>
+                            handleSizeChange(
+                              currentBreakpoint,
+                              "w",
+                              e.target.value
+                            )
+                          }
+                          aria-invalid={!!errors[`${currentBreakpoint}_w`]}
+                        />
+                        {errors[`${currentBreakpoint}_w`] && (
+                          <p className="text-sm text-destructive">
+                            {errors[`${currentBreakpoint}_w`]}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor={`${currentBreakpoint}_h`}>
+                          高さ (H)
+                        </Label>
+                        <Input
+                          id={`${currentBreakpoint}_h`}
+                          type="number"
+                          placeholder="H"
+                          value={
+                            localOptions.defaultChartSizes[currentBreakpoint]
+                              ?.h ?? ""
+                          }
+                          onChange={(e) =>
+                            handleSizeChange(
+                              currentBreakpoint,
+                              "h",
+                              e.target.value
+                            )
+                          }
+                          aria-invalid={!!errors[`${currentBreakpoint}_h`]}
+                        />
+                        {errors[`${currentBreakpoint}_h`] && (
+                          <p className="text-sm text-destructive">
+                            {errors[`${currentBreakpoint}_h`]}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             </div>
