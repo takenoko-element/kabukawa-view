@@ -1,10 +1,8 @@
 // front/app/page.tsx
 import Dashboard from "@/components/Dashboard";
 
-export default function Home() {
-  return (
-    <main className="min-h-screen">
-      <Dashboard />
-    </main>
-  );
-}
+const Home = () => {
+  return <Dashboard />;
+};
+
+export default Home;

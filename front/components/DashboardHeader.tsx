@@ -10,9 +10,10 @@ import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import ThemeToggleButton from "./ThemeToggleButton";
 import { chartTypeOptions, ChartType } from "@/constants/chartTypes";
 import { intervalOptions, Interval } from "@/constants/intervals";
+import ThemeToggleButton from "./ThemeToggleButton";
+import { UpgradeButton } from "./UpgradeButton";
 
 type Props = {
   isVisible: boolean;
@@ -56,6 +57,7 @@ const DashboardHeader = ({
           <h1 className="text-2xl font-bold">KABUKAWA View</h1>
           <div className="flex items-center gap-4">
             <SignedIn>
+              <UpgradeButton />
               <Button
                 onClick={saveLayout}
                 variant="outline"
