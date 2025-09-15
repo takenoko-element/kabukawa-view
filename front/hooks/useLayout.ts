@@ -10,8 +10,7 @@ import { toast } from "sonner";
 import { LayoutItem, Symbol, Layouts } from "@/types";
 import { COLS } from "@/constants/cols";
 import { DefaultChartSizes } from "@/types";
-
-const API_URL = "http://localhost:8000";
+import { API_URL } from "@/constants/config";
 
 // APIから取得/APIへ送信するデータの型
 type LayoutData = Layouts;

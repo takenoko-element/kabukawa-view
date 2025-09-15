@@ -38,6 +38,7 @@ const ChartWidget: React.FC<Props> = memo(
     const widgetId = `tradingview_${item.symbol.replace(/[:]/g, "_")}`;
 
     useEffect(() => {
+      const container = containerRef.current;
       // isRemovingがtrueになったら、すぐにクリーンアップ完了を通知して処理を終了
       if (isRemoving) {
         onCleanupComplete(item.i);
@@ -71,17 +72,23 @@ const ChartWidget: React.FC<Props> = memo(
 
       // コンポーネントがアンマウントされる時のクリーンアップ処理
       return () => {
-        if (widgetRef.current) {
+        // ウィジェットが存在し、かつコンテナ要素がまだDOMに存在する場合のみクリーンアップを実行
+        if (
+          widgetRef.current &&
+          container &&
+          document.body.contains(container)
+        ) {
           try {
             widgetRef.current.remove();
           } catch (error) {
+            // remove()自体が内部でエラーを起こすことがあるため、念のためtry...catchを行う
             console.error(
               "Error removing TradingView widget on unmount:",
               error
             );
           }
-          widgetRef.current = null;
         }
+        widgetRef.current = null;
       };
     }, [
       isRemoving,

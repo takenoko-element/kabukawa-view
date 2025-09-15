@@ -1,6 +1,7 @@
 # api/main.py
 import os
-from fastapi import FastAPI, Depends, HTTPException, Request
+import stripe
+from fastapi import FastAPI, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
@@ -13,6 +14,14 @@ from svix.webhooks import Webhook, WebhookVerificationError
 from database import get_session
 
 from models import LayoutItem, Symbol, User
+
+class UserWebhookPayload(BaseModel):
+    data: dict
+    object: str
+    type: str
+
+class UserStatus(BaseModel):
+    is_premium: bool
 
 app = FastAPI()
 
@@ -39,6 +48,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 # JWKSをキャッシュする変数
 jwks_cache = None
 
+# Stripe APIキーの設定
+stripe.api_key = os.getenv("STRIPE_API_KEY")
+
 def get_jwks():
     """
     ClerkからJWKSを取得し、キャッシュする
@@ -50,9 +62,9 @@ def get_jwks():
         jwks_cache = response.json()
     return jwks_cache
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+async def get_current_user_payload(token: str = Depends(oauth2_scheme)):
     """
-    トークンを検証し、ユーザー情報を返す依存関係
+    トークンを検証し、ユーザーペイロードを返す依存関係
     """
     try:
         jwks = get_jwks()
@@ -89,22 +101,34 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+async def get_current_user(
+    session: Session = Depends(get_session),
+    clerk_user: dict = Depends(get_current_user_payload)
+) -> User:
+    """
+    DBから現在のユーザー情報を取得する依存関係
+    """
+    user = session.exec(select(User).where(User.user_id == clerk_user["sub"])).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found in database")
+    return user
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Kabukawa-View API"}
 
+# 現在のユーザーのプレミアム状態を返すエンドポイント
+@app.get("/api/user-status", response_model=UserStatus)
+def get_user_status(current_user: User = Depends(get_current_user)):
+    return UserStatus(is_premium=current_user.is_premium)
+
 # レイアウトを取得するエンドポイント
 @app.get("/api/layout", response_model=Dict[str, List[LayoutItem]])
 def get_layout(
-    session: Session = Depends(get_session),
-    clerk_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    user = session.exec(select(User).where(User.user_id == clerk_user["sub"])).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     layouts: Dict[str, List[LayoutItem]] = {}
-    for item in user.layouts:
+    for item in current_user.layouts:
         if item.breakpoint not in layouts:
             layouts[item.breakpoint] = []
         layouts[item.breakpoint].append(item)
@@ -115,14 +139,10 @@ def get_layout(
 def save_layout(
     layouts: Dict[str, List[LayoutItem]],
     session: Session = Depends(get_session),
-    clerk_user: dict = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    user = session.exec(select(User).where(User.user_id == clerk_user["sub"])).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     # DBに保存されている既存のアイテムを全て取得し、ユニークID(i)とbreakpointのタプルをキーにする
-    db_items_query = session.exec(select(LayoutItem).where(LayoutItem.user_id == user.id)).all()
+    db_items_query = session.exec(select(LayoutItem).where(LayoutItem.user_id == current_user.id)).all()
     db_items_dict = {(item.i, item.breakpoint): item for item in db_items_query}
 
     # フロントから来たアイテムのキーをセットで保持
@@ -152,7 +172,7 @@ def save_layout(
                 item_data['breakpoint'] = breakpoint
 
                 new_item = LayoutItem.model_validate(item_data)
-                new_item.user = user # userリレーションではなくuser_idを直接設定
+                new_item.user_id = current_user.id # userリレーションではなくuser_idを直接設定
                 session.add(new_item)
 
     # 2. 削除
@@ -171,12 +191,7 @@ def get_symbols(session: Session = Depends(get_session)):
     return symbols
 
 # Clerk Webhook用のエンドポイント
-class UserWebhookPayload(BaseModel):
-    data: dict
-    object: str
-    type: str
-
-@app.post("/api/webhooks")
+@app.post("/api/clerk-webhooks")
 async def handle_webhook(request: Request, session: Session = Depends(get_session)):
     webhook_secret = os.getenv("CLERK_WEBHOOK_SECRET")
     if not webhook_secret:
@@ -198,7 +213,7 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
         email = data["email_addresses"][0]["email_address"]
         existing_user = session.exec(select(User).where(User.user_id == user_id)).first()
         if not existing_user:
-            new_user = User(user_id=user_id, email=email)
+            new_user = User(user_id=user_id, email=email, is_premium=False)
             session.add(new_user)
             session.commit()
 
@@ -216,6 +231,72 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
             user_to_delete = session.exec(select(User).where(User.user_id == user_id)).first()
             if user_to_delete:
                 session.delete(user_to_delete)
+                session.commit()
+
+    return {"status": "success"}
+
+# Stripe Checkoutセッションを作成するエンドポイント
+@app.post("/api/create-checkout-session")
+async def create_checkout_session(current_user: User = Depends(get_current_user)):
+    if current_user.is_premium:
+        raise HTTPException(status_code=400, detail="すでにプレミアム会員です。")
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "jpy",
+                        "product_data": {
+                            "name": "KABUKAWA View プレミアムプラン",
+                        },
+                        "unit_amount": 500,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            mode="payment",
+            success_url="http://localhost:3000/upgrade/success",
+            cancel_url="http://localhost:3000/upgrade/cancel",
+            # metadataにuser_idをセットして、webhookでどのユーザーか識別できるようにする
+            metadata={"user_id": current_user.user_id},
+        )
+        return {"url": checkout_session.url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Stripe Webhook用のエンドポイント
+@app.post("/api/stripe-webhooks")
+async def stripe_webhook(
+    request: Request,
+    session: Session = Depends(get_session),
+    stripe_signature: str = Header(None),
+):
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+    if not webhook_secret:
+        raise HTTPException(status_code=500, detail="Stripe webhook secret not configured")
+
+    try:
+        payload = await request.body()
+        event = stripe.Webhook.construct_event(
+            payload=payload, sig_header=stripe_signature, secret=webhook_secret
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid payload: {e}")
+    except stripe.error.SignatureVerificationError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid signature: {e}")
+
+
+    # checkout.session.completed イベントを処理
+    if event["type"] == "checkout.session.completed":
+        session_data = event["data"]["object"]
+        user_id = session_data.get("metadata", {}).get("user_id")
+
+        if user_id:
+            user = session.exec(select(User).where(User.user_id == user_id)).first()
+            if user and not user.is_premium:
+                user.is_premium = True
+                session.add(user)
                 session.commit()
 
     return {"status": "success"}

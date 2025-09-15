@@ -7,6 +7,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     user_id: str = Field(unique=True, index=True)
     email: str
+    is_premium: bool = Field(default=False)
 
     layouts: List["LayoutItem"] = Relationship(back_populates="user")
 

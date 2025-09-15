@@ -19,8 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Symbol } from "@/types/Symbol";
-
-const API_URL = "http://localhost:8000";
+import { API_URL } from "@/constants/config";
 
 type Props = {
   isOpen: boolean;
