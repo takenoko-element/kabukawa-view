@@ -1,33 +1,15 @@
 // front/app/upgrade/page.tsx
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import axios from "axios";
-import { useAuth } from "@clerk/nextjs";
 
 import { Button } from "@/components/ui/button";
-import { API_URL } from "@/constants/config";
 import { UpgradeView } from "@/components/UpgradeView";
-
-const fetchUserStatus = async (getToken: () => Promise<string | null>) => {
-  const token = await getToken();
-  if (!token) throw new Error("Not authenticated");
-  const { data } = await axios.get(`${API_URL}/api/user-status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return data;
-};
+import { useUserStatus } from "@/hooks/useUserStatus";
 
 const UpgradePage = () => {
-  const { getToken, isSignedIn } = useAuth();
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["userStatus"],
-    queryFn: () => fetchUserStatus(getToken),
-    enabled: !!isSignedIn,
-    retry: false,
-  });
+  const { isPremium, isLoading, error } = useUserStatus();
 
   return (
     <div className="flex h-screen items-center justify-center bg-background p-4">
@@ -46,7 +28,7 @@ const UpgradePage = () => {
           </div>
         )}
 
-        {data?.is_premium && (
+        {!isLoading && isPremium && (
           <div className="rounded-lg border bg-card p-8 text-center shadow-lg">
             <h2 className="text-xl font-semibold">
               既にプレミアムプランにご登録済みです
@@ -57,7 +39,7 @@ const UpgradePage = () => {
           </div>
         )}
 
-        {data && !data.is_premium && (
+        {!isLoading && !isPremium && (
           <UpgradeView isCheckingStatus={isLoading} />
         )}
 

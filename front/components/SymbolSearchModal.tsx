@@ -5,6 +5,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { Search, X } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,13 +20,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Symbol } from "@/types/Symbol";
-import { API_URL } from "@/constants/config";
+import {
+  API_URL,
+  NORMAL_USER_MAX_CHARTS,
+  PREMIUM_USER_MAX_CHARTS,
+} from "@/constants/config";
 
 type Props = {
   isOpen: boolean;
   onClose: () => void;
   onAdd: (symbols: Symbol[]) => void;
   addedSymbols: string[];
+  isPremium: boolean;
 };
 
 const TAB_DEFINITIONS = {
@@ -46,6 +52,7 @@ export const SymbolSearchModal = ({
   onClose,
   onAdd,
   addedSymbols,
+  isPremium,
 }: Props) => {
   const [activeTab, setActiveTab] = useState<TabKey>("japan");
   const [searchQuery, setSearchQuery] = useState("");
@@ -96,11 +103,35 @@ export const SymbolSearchModal = ({
       return;
     }
 
-    setSelectedSymbols((prev) =>
-      prev.some((s) => s.value === symbol.value)
-        ? prev.filter((s) => s.value !== symbol.value)
-        : [...prev, symbol]
+    const isAlreadySelected = selectedSymbols.some(
+      (s) => s.value === symbol.value
     );
+
+    // 選択解除の場合は、上限チェックは不要
+    if (isAlreadySelected) {
+      setSelectedSymbols((prev) =>
+        prev.filter((s) => s.value !== symbol.value)
+      );
+      return;
+    }
+
+    // 上限チェック
+    const maxCharts = isPremium
+      ? PREMIUM_USER_MAX_CHARTS
+      : NORMAL_USER_MAX_CHARTS;
+    const currentTotalCharts = addedSymbols.length + selectedSymbols.length;
+
+    if (currentTotalCharts >= maxCharts) {
+      toast.error(`チャートの最大表示数（${maxCharts}個）に達しました。`, {
+        description: isPremium
+          ? "これ以上チャートを追加することはできません。"
+          : "プレミアムプランにアップグレードすると、50個まで表示可能になります。",
+      });
+      return; // 上限に達している場合は追加しない
+    }
+
+    // 上限に達していなければ選択リストに追加
+    setSelectedSymbols((prev) => [...prev, symbol]);
   };
 
   const handleClose = () => {
@@ -121,7 +152,13 @@ export const SymbolSearchModal = ({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2">
-          <DialogTitle>銘柄を追加</DialogTitle>
+          <DialogTitle>
+            銘柄を追加 (
+            {isPremium
+              ? `${addedSymbols.length} / ${PREMIUM_USER_MAX_CHARTS}`
+              : `${addedSymbols.length} / ${NORMAL_USER_MAX_CHARTS}`}
+            )
+          </DialogTitle>
         </DialogHeader>
         <div className="flex-grow flex gap-4 px-6 overflow-hidden">
           {/* 左側: 選択中（ストック）の銘柄リスト */}
