@@ -14,11 +14,13 @@ import { useLayout } from "@/hooks/useLayout";
 import { useChartSettings } from "@/hooks/useChartSettings";
 import { useDashboardModals } from "@/hooks/useDashboardModals";
 import { useTradingViewScript } from "@/hooks/useTradingViewScript";
+import { useUserStatus } from "@/hooks/useUserStatus";
 
 const Dashboard = () => {
   const { resolvedTheme } = useTheme();
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const scriptStatus = useTradingViewScript();
+  const { isPremium } = useUserStatus();
 
   const {
     chartSettings,
@@ -117,6 +119,7 @@ const Dashboard = () => {
         onClose={closeSearchModal}
         onAdd={handleAddMultipleCharts}
         addedSymbols={addedSymbols}
+        isPremium={isPremium}
       />
     </div>
   );
