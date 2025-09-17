@@ -23,6 +23,9 @@ class UserWebhookPayload(BaseModel):
 class UserStatus(BaseModel):
     is_premium: bool
 
+class PaymentIntentResponse(BaseModel):
+    client_secret: str
+
 app = FastAPI()
 
 # CORS設定（Next.jsからのアクセスを許可）
@@ -235,33 +238,23 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
 
     return {"status": "success"}
 
-# Stripe Checkoutセッションを作成するエンドポイント
-@app.post("/api/create-checkout-session")
-async def create_checkout_session(current_user: User = Depends(get_current_user)):
+# Stripe Elements用のエンドポイント
+# Stripe Payment Intentを作成し、クライアントシークレットを返すエンドポイント
+@app.post("/api/create-payment-intent", response_model=PaymentIntentResponse)
+async def create_payment_intent(current_user: User = Depends(get_current_user)):
     if current_user.is_premium:
         raise HTTPException(status_code=400, detail="すでにプレミアム会員です。")
 
     try:
-        checkout_session = stripe.checkout.Session.create(
-            line_items=[
-                {
-                    "price_data": {
-                        "currency": "jpy",
-                        "product_data": {
-                            "name": "KABUKAWA View プレミアムプラン",
-                        },
-                        "unit_amount": 500,
-                    },
-                    "quantity": 1,
-                }
-            ],
-            mode="payment",
-            success_url="http://localhost:3000/upgrade/success",
-            cancel_url="http://localhost:3000/upgrade/cancel",
+        # 支払い情報を渡してPayment Intentを作成
+        payment_intent = stripe.PaymentIntent.create(
+            amount=500,
+            currency="jpy",
+            automatic_payment_methods={"enabled": True},
             # metadataにuser_idをセットして、webhookでどのユーザーか識別できるようにする
             metadata={"user_id": current_user.user_id},
         )
-        return {"url": checkout_session.url}
+        return PaymentIntentResponse(client_secret=payment_intent.client_secret)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -286,11 +279,13 @@ async def stripe_webhook(
     except stripe.error.SignatureVerificationError as e:
         raise HTTPException(status_code=400, detail=f"Invalid signature: {e}")
 
+    event_data = event["data"]["object"]
 
-    # checkout.session.completed イベントを処理
-    if event["type"] == "checkout.session.completed":
-        session_data = event["data"]["object"]
-        user_id = session_data.get("metadata", {}).get("user_id")
+    # イベントタイプに応じて処理を分岐
+    # payment_intent.succeeded イベントを処理
+    if event["type"] == "payment_intent.succeeded":
+        # PaymentIntentからmetadataを取得
+        user_id = event_data.get("metadata", {}).get("user_id")
 
         if user_id:
             user = session.exec(select(User).where(User.user_id == user_id)).first()

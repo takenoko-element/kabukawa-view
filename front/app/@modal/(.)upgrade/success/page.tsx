@@ -1,15 +1,19 @@
-// front/app/(.)upgrade/success/page.tsx
+// front/app/@modal/(.)upgrade/success/page.tsx
 "use client";
-import { useEffect } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ModalWrapper } from "@/components/ModalWrapper";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const SuccessView = () => (
+const SuccessView = ({ onClose }: { onClose: () => void }) => (
   <div className="rounded-lg border bg-card p-8 text-center shadow-lg">
     <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
     <DialogHeader className="space-y-2 mt-6 text-center">
@@ -18,23 +22,37 @@ const SuccessView = () => (
       </DialogTitle>
       <p className="text-lg text-muted-foreground">ありがとうございます。</p>
     </DialogHeader>
-    <Button asChild size="lg" className="mt-6 w-full">
-      <Link href="/">ダッシュボードへ戻る</Link>
+    <Button onClick={onClose} size="lg" className="mt-6 w-full">
+      ダッシュボードへ戻る
     </Button>
   </div>
 );
 
 const InterceptedSuccessPage = () => {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const [isOpen, setIsOpen] = useState(true);
 
   useEffect(() => {
+    // ユーザー情報を再取得してヘッダーの表示などを更新
     queryClient.invalidateQueries({ queryKey: ["userStatus"] });
   }, [queryClient]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      // アニメーションが終わるのを少し待ってから遷移
+      setTimeout(() => {
+        router.push("/");
+      }, 150);
+    }
+  }, [isOpen, router]);
+
   return (
-    <ModalWrapper>
-      <SuccessView />
-    </ModalWrapper>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogContent className="p-0 border-0 bg-transparent shadow-none w-full max-w-md">
+        <SuccessView onClose={() => setIsOpen(false)} />
+      </DialogContent>
+    </Dialog>
   );
 };
 

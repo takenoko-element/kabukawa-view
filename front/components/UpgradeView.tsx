@@ -1,97 +1,63 @@
 // front/components/UpgradeView.tsx
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import axios from "axios";
-import { useAuth } from "@clerk/nextjs";
-
 import { Button } from "@/components/ui/button";
 import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { API_URL } from "@/constants/config";
+import {
+  NORMAL_USER_MAX_CHARTS,
+  PREMIUM_USER_MAX_CHARTS,
+} from "@/constants/config";
+import { Check } from "lucide-react";
 
 const ListItem = ({ children }: { children: React.ReactNode }) => (
-  <li className="flex items-center">
-    <svg
-      className="mr-2 h-5 w-5 text-green-500"
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2"
-        d="M5 13l4 4L19 7"
-      ></path>
-    </svg>
+  <li className="flex items-start gap-3">
+    <Check className="h-5 w-5 text-green-500 mt-0.5 shrink-0" />
     <span>{children}</span>
   </li>
 );
 
-export const UpgradeView = ({
-  isCheckingStatus,
-}: {
-  isCheckingStatus: boolean;
-}) => {
-  const [isRedirecting, setIsRedirecting] = useState(false);
-  const { getToken } = useAuth();
-  const router = useRouter();
+type Props = {
+  onProceed: () => void;
+};
 
-  const handleUpgrade = async () => {
-    setIsRedirecting(true);
-    try {
-      const token = await getToken();
-      const response = await axios.post(
-        `${API_URL}/api/create-checkout-session`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      router.push(response.data.url);
-    } catch (err) {
-      console.error("決済ページへのリダイレクトに失敗しました。", err);
-      setIsRedirecting(false);
-    }
-  };
-
-  // 親コンポーネントでラップされるため、ローディングやエラー、プレミアム状態のUIは返さない
-  if (isCheckingStatus) {
-    return null;
-  }
-
+export const UpgradeView = ({ onProceed }: Props) => {
   return (
-    <div className="rounded-lg border bg-card p-8 text-center shadow-lg">
-      <DialogHeader className="text-center">
+    <div className="rounded-lg border bg-card p-6 text-foreground shadow-lg">
+      <DialogHeader>
         <DialogTitle asChild>
-          <h1 className="text-3xl font-bold tracking-tight">
-            KABUKAWA View Pro
-          </h1>
+          <h2 className="text-2xl font-bold text-center">KABUKAWA View Pro</h2>
         </DialogTitle>
-        <p className="mt-4 text-muted-foreground">
+      </DialogHeader>
+
+      <div className="my-6">
+        <p className="text-center text-muted-foreground">
           プレミアムプランにアップグレードして、全ての機能を開放しましょう。
         </p>
-      </DialogHeader>
-      <div className="my-8">
-        <span className="text-5xl font-extrabold">¥500</span>
-        <span className="ml-2 text-xl font-medium text-muted-foreground">
-          / 買い切り
-        </span>
+        <div className="my-6 text-center">
+          <span className="text-5xl font-extrabold">¥500</span>
+          <span className="ml-2 text-xl font-medium text-muted-foreground">
+            / 買い切り
+          </span>
+        </div>
       </div>
-      <ul className="space-y-3 text-left">
-        <ListItem>機能1: 広告の非表示</ListItem>
-        <ListItem>機能2: 保存できるレイアウト数の増加</ListItem>
-        <ListItem>機能3: 優先的なサポート</ListItem>
+
+      <ul className="space-y-4 text-left text-sm">
+        <ListItem>
+          <strong>チャート表示数の上限UP:</strong> 最大{NORMAL_USER_MAX_CHARTS}
+          個から
+          <strong>{PREMIUM_USER_MAX_CHARTS}個</strong>に増加します。
+        </ListItem>
+        {/* <ListItem>
+          <strong>広告の非表示:</strong>{" "}
+          より快適に分析に集中できます。(将来実装予定)
+        </ListItem>
+        <ListItem>
+          <strong>優先的なサポート:</strong>{" "}
+          お問い合わせに優先的に対応します。(将来実装予定)
+        </ListItem> */}
       </ul>
-      <Button
-        onClick={handleUpgrade}
-        disabled={isRedirecting}
-        className="mt-8 w-full"
-        size="lg"
-      >
-        {isRedirecting && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-        アップグレードする
+      <Button onClick={onProceed} className="mt-8 w-full" size="lg">
+        アップグレードに進む
       </Button>
     </div>
   );
