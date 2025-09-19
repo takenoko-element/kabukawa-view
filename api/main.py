@@ -28,10 +28,12 @@ class PaymentIntentResponse(BaseModel):
 
 app = FastAPI()
 
-# CORS設定（Next.jsからのアクセスを許可）
+allowed_origins = os.getenv("ALLOWED_ORIGINS")
+
+# CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
