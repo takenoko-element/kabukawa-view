@@ -2,7 +2,6 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   NORMAL_USER_MAX_CHARTS,
   PREMIUM_USER_MAX_CHARTS,
@@ -23,11 +22,7 @@ type Props = {
 export const UpgradeView = ({ onProceed }: Props) => {
   return (
     <div className="rounded-lg border bg-card p-6 text-foreground shadow-lg">
-      <DialogHeader>
-        <DialogTitle asChild>
-          <h2 className="text-2xl font-bold text-center">KABUKAWA View Pro</h2>
-        </DialogTitle>
-      </DialogHeader>
+      <h2 className="text-2xl font-bold text-center">KABUKAWA View Pro</h2>
 
       <div className="my-6">
         <p className="text-center text-muted-foreground">
