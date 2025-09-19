@@ -219,7 +219,22 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
 
     if event_type == "user.created":
         user_id = data["id"]
-        email = data["email_addresses"][0]["email_address"]
+
+        # email_addressesリストが存在し、空でないことを確認
+        email_addresses = data.get("email_addresses", [])
+        if not email_addresses:
+            raise HTTPException(
+                status_code=400,
+                detail="Email address is required but was not provided by the webhook payload.",
+            )
+
+        email = email_addresses[0].get("email_address")
+        if not email:
+            raise HTTPException(
+                status_code=400,
+                detail="Email address is required but was not provided by the webhook payload.",
+            )
+
         existing_user = session.exec(select(User).where(User.user_id == user_id)).first()
         if not existing_user:
             new_user = User(user_id=user_id, email=email, is_premium=False)
@@ -230,9 +245,12 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
         user_id = data["id"]
         user_to_update = session.exec(select(User).where(User.user_id == user_id)).first()
         if user_to_update:
-            user_to_update.email = data["email_addresses"][0]["email_address"]
-            session.add(user_to_update)
-            session.commit()
+            # email_addressesが存在する場合のみ更新処理を行う
+            email_addresses = data.get("email_addresses", [])
+            if email_addresses and (email := email_addresses[0].get("email_address")):
+                user_to_update.email = email
+                session.add(user_to_update)
+                session.commit()
 
     elif event_type == "user.deleted":
         user_id = data.get("id")
