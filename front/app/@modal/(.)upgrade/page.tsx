@@ -5,7 +5,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { CheckoutWrapper } from "@/components/CheckoutWrapper";
 import { UpgradeView } from "@/components/UpgradeView";
@@ -39,7 +44,11 @@ const InterceptedUpgradePage = () => {
         {!isLoading && !isPremium && (
           <>
             {view === "benefits" && (
-              <UpgradeView onProceed={() => setView("payment")} />
+              <DialogHeader>
+                <DialogTitle>
+                  <UpgradeView onProceed={() => setView("payment")} />
+                </DialogTitle>
+              </DialogHeader>
             )}
             {view === "payment" && <CheckoutWrapper />}
           </>
