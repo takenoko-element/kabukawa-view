@@ -28,7 +28,11 @@ class PaymentIntentResponse(BaseModel):
 
 app = FastAPI()
 
-allowed_origins = os.getenv("ALLOWED_ORIGINS")
+# 環境変数から許可するオリジンを文字列として取得
+origins_str = os.getenv("ALLOWED_ORIGINS", "")
+
+# 文字列をカンマで分割して、URLのリストを作成
+allowed_origins = [origin.strip() for origin in origins_str.split(",") if origin]
 
 # CORS設定
 app.add_middleware(
