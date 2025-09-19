@@ -29,10 +29,19 @@ class PaymentIntentResponse(BaseModel):
 app = FastAPI()
 
 # 環境変数から許可するオリジンを文字列として取得
-origins_str = os.getenv("ALLOWED_ORIGINS", "")
+# 環境変数が設定されていない場合に備え、分かりやすいデフォルト値に変更
+origins_str = os.getenv("ALLOWED_ORIGINS", "!!!_ENV_VAR_NOT_SET_!!!")
+
+# --- Renderのログで確認するためのデバッグ出力 ---
+print("--- CORS DEBUGGING ---")
+print(f"Raw string from getenv('ALLOWED_ORIGINS'): '{origins_str}'")
 
 # 文字列をカンマで分割して、URLのリストを作成
-allowed_origins = [origin.strip() for origin in origins_str.split(",") if origin]
+allowed_origins = [origin.strip() for origin in origins_str.split(",") if origin.strip()]
+
+# 最終的にCORSMiddlewareに渡されるリストを出力
+print(f"Final list passed to CORSMiddleware: {allowed_origins}")
+print("----------------------")
 
 # CORS設定
 app.add_middleware(
