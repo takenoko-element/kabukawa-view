@@ -319,9 +319,3 @@ async def stripe_webhook(
                 session.commit()
 
     return {"status": "success"}
-
-# 仮想環境の起動方法：
-# .\venv\Scripts\Activate
-# deactivate
-# サーバーの起動方法:
-# ターミナルで `uvicorn main:app --reload` を実行
