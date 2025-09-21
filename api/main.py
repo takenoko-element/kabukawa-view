@@ -122,6 +122,21 @@ async def get_current_user(
         raise HTTPException(status_code=404, detail="User not found in database")
     return user
 
+async def get_current_user_for_update(
+    session: Session = Depends(get_session),
+    clerk_user: dict = Depends(get_current_user_payload)
+) -> User:
+    """
+    DBから現在のユーザー情報を取得し、行をロックする依存関係
+    """
+    # with_for_update() をつけることで、トランザクションが完了するまでこの行をロックする
+    user = session.exec(
+        select(User).where(User.user_id == clerk_user["sub"]).with_for_update()
+    ).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found in database")
+    return user
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to Kabukawa-View API"}
@@ -265,19 +280,48 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
 # Stripe Elements用のエンドポイント
 # Stripe Payment Intentを作成し、クライアントシークレットを返すエンドポイント
 @app.post("/api/create-payment-intent", response_model=PaymentIntentResponse)
-async def create_payment_intent(current_user: User = Depends(get_current_user)):
+async def create_payment_intent(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_for_update),
+    idempotency_key: str = Header(None, alias="Idempotency-Key"),
+):
     if current_user.is_premium:
         raise HTTPException(status_code=400, detail="すでにプレミアム会員です。")
 
+    if not idempotency_key:
+        raise HTTPException(status_code=400, detail="Idempotency-Keyヘッダーが必要です。")
+
     try:
-        # 支払い情報を渡してPayment Intentを作成
+        # ----- 高冪等性確保のための処理 ＆ 支払いインテントの作成 -----
+        # 1. DBに保存されたPaymentIntent IDがあるか確認
+        if current_user.stripe_payment_intent_id:
+            try:
+                # 2. Stripe APIでPaymentIntentの現在の状態を取得
+                existing_pi = stripe.PaymentIntent.retrieve(
+                    current_user.stripe_payment_intent_id
+                )
+                # 3. まだ支払いが完了していない場合、そのclient_secretを返す
+                if existing_pi.status in ["requires_payment_method", "requires_confirmation"]:
+                     return PaymentIntentResponse(client_secret=existing_pi.client_secret)
+            except stripe.error.InvalidRequestError:
+                # Stripe側でIDが無効な場合は、新規作成処理に進む
+                pass
+
+        # 4. 既存の有効なPaymentIntentがない場合、新規に作成
         payment_intent = stripe.PaymentIntent.create(
             amount=500,
             currency="jpy",
             automatic_payment_methods={"enabled": True},
             # metadataにuser_idをセットして、webhookでどのユーザーか識別できるようにする
             metadata={"user_id": current_user.user_id},
+            idempotency_key=idempotency_key,
         )
+
+        # 5. 作成したPaymentIntentのIDをDBに保存
+        current_user.stripe_payment_intent_id = payment_intent.id
+        session.add(current_user)
+        session.commit()
+
         return PaymentIntentResponse(client_secret=payment_intent.client_secret)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -313,8 +357,22 @@ async def stripe_webhook(
 
         if user_id:
             user = session.exec(select(User).where(User.user_id == user_id)).first()
-            if user and not user.is_premium:
-                user.is_premium = True
+            if user:
+                # プレミアム状態への更新とPaymentIntent IDのクリア
+                if not user.is_premium:
+                    user.is_premium = True
+
+                user.stripe_payment_intent_id = None
+                session.add(user)
+                session.commit()
+    # 支払失敗時のハンドリング
+    elif event["type"] == "payment_intent.payment_failed":
+        user_id = event_data.get("metadata", {}).get("user_id")
+        if user_id:
+            user = session.exec(select(User).where(User.user_id == user_id)).first()
+            if user:
+                # 支払いが失敗したので、次の支払いのためにIDをクリアする
+                user.stripe_payment_intent_id = None
                 session.add(user)
                 session.commit()
 
