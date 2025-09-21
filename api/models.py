@@ -8,6 +8,7 @@ class User(SQLModel, table=True):
     user_id: str = Field(unique=True, index=True)
     email: str
     is_premium: bool = Field(default=False)
+    stripe_payment_intent_id: Optional[str] = Field(default=None, index=True)
 
     layouts: List["LayoutItem"] = Relationship(back_populates="user")
 
