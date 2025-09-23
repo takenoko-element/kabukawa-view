@@ -14,15 +14,22 @@ import {
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { CheckoutWrapper } from "@/components/CheckoutWrapper";
 import { UpgradeView } from "@/components/UpgradeView";
+import { Plan } from "@/types";
 
 const InterceptedUpgradePage = () => {
-  const { isPremium, isLoading } = useUserStatus();
+  const { status, isLoading } = useUserStatus();
   const [view, setView] = useState<"benefits" | "payment">("benefits");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("one_time");
   const router = useRouter();
 
   const handleClose = () => {
     // トップページに遷移することで、モーダルを閉じる
     router.back();
+  };
+
+  const handleProceed = (plan: Plan) => {
+    setSelectedPlan(plan);
+    setView("payment");
   };
 
   return (
@@ -41,16 +48,16 @@ const InterceptedUpgradePage = () => {
             <Loader2 className="mx-auto h-8 w-8 animate-spin text-white" />
           </div>
         )}
-        {!isLoading && !isPremium && (
+        {!isLoading && status !== "lifetime" && (
           <>
             {view === "benefits" && (
               <DialogHeader>
                 <DialogTitle>
-                  <UpgradeView onProceed={() => setView("payment")} />
+                  <UpgradeView onProceed={handleProceed} />
                 </DialogTitle>
               </DialogHeader>
             )}
-            {view === "payment" && <CheckoutWrapper />}
+            {view === "payment" && <CheckoutWrapper plan={selectedPlan} />}
           </>
         )}
       </DialogContent>

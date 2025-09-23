@@ -9,10 +9,17 @@ import { Button } from "@/components/ui/button";
 import { useUserStatus } from "@/hooks/useUserStatus";
 import { CheckoutWrapper } from "@/components/CheckoutWrapper";
 import { UpgradeView } from "@/components/UpgradeView";
+import { Plan } from "@/types";
 
 const UpgradePage = () => {
-  const { isPremium, isLoading, error } = useUserStatus();
+  const { status, isLoading, error } = useUserStatus();
   const [view, setView] = useState<"benefits" | "payment">("benefits");
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("one_time");
+
+  const handleProceed = (plan: Plan) => {
+    setSelectedPlan(plan);
+    setView("payment");
+  };
 
   return (
     <div className="container mx-auto flex min-h-screen flex-col items-center justify-center p-4">
@@ -31,10 +38,10 @@ const UpgradePage = () => {
           </div>
         )}
 
-        {!isLoading && isPremium && (
+        {!isLoading && status === "lifetime" && (
           <div className="rounded-lg border bg-card p-8 text-center shadow-lg">
             <h2 className="text-xl font-semibold">
-              既にプレミアムプランにご登録済みです
+              既に買い切りプランにご登録済みです
             </h2>
             <Button asChild className="mt-6">
               <Link href="/">トップページへ戻る</Link>
@@ -42,16 +49,16 @@ const UpgradePage = () => {
           </div>
         )}
 
-        {!isLoading && !isPremium && (
+        {!isLoading && status !== "lifetime" && (
           <>
             {view === "benefits" ? (
               <div className="max-w-md mx-auto">
-                <UpgradeView onProceed={() => setView("payment")} />
+                <UpgradeView onProceed={handleProceed} />
               </div>
             ) : (
               <div className="flex flex-col lg:flex-row gap-8">
                 <div className="lg:w-2/3">
-                  <CheckoutWrapper />
+                  <CheckoutWrapper plan={selectedPlan} />
                 </div>
               </div>
             )}
