@@ -483,17 +483,27 @@ async def stripe_webhook(
                     session.add(user)
                     session.commit()
 
-    # サブスクリプションの支払いが成功したときの処理
-    elif event["type"] == "invoice.payment_succeeded":
-        subscription_id = event_data.get("subscription")
-        if subscription_id:
-            user = session.exec(select(User).where(User.stripe_subscription_id == subscription_id)).first()
+    # サブスクリプションの作成・更新・キャンセルを処理
+    elif event["type"] in ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"]:
+        subscription = event_data
+        customer_id = subscription.get("customer")
+
+        if customer_id:
+            user = session.exec(select(User).where(User.stripe_customer_id == customer_id)).first()
             if user:
-                # サブスクリプションの期間を更新
-                subscription = stripe.Subscription.retrieve(subscription_id)
-                user.subscription_end_date = datetime.fromtimestamp(subscription.current_period_end)
-                session.add(user)
-                session.commit()
+                if event["type"] == "customer.subscription.deleted":
+                    # サブスクがキャンセルされたら日付をクリア
+                    user.subscription_end_date = None
+                    session.add(user)
+                    session.commit()
+                # 'active' または 'trialing' の場合、有効期限を更新
+                elif subscription.get("status") in ["active", "trialing"]:
+                    # タイムゾーンをUTCに指定してdatetimeオブジェクトを作成
+                    end_date = datetime.fromtimestamp(subscription.get("current_period_end"), tz=timezone.utc)
+                    user.subscription_end_date = end_date
+                    user.stripe_subscription_id = subscription.get("id") # 念のためIDも更新
+                    session.add(user)
+                    session.commit()
 
     # 支払失敗時のハンドリング
     elif event["type"] == "payment_intent.payment_failed":
