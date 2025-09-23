@@ -498,12 +498,18 @@ async def stripe_webhook(
                     session.commit()
                 # 'active' または 'trialing' の場合、有効期限を更新
                 elif subscription.get("status") in ["active", "trialing"]:
-                    # タイムゾーンをUTCに指定してdatetimeオブジェクトを作成
-                    end_date = datetime.fromtimestamp(subscription.get("current_period_end"), tz=timezone.utc)
-                    user.subscription_end_date = end_date
-                    user.stripe_subscription_id = subscription.get("id") # 念のためIDも更新
-                    session.add(user)
-                    session.commit()
+                    # サブスクリプションアイテムのリストから期間を取得
+                    subscription_items = subscription.get("items", {}).get("data", [])
+                    if subscription_items:
+                        # 通常はアイテムは1つなので、最初のアイテムの期間を取得
+                        current_period_end = subscription_items[0].get("current_period_end")
+                        if current_period_end:
+                            # タイムゾーンをUTCに指定してdatetimeオブジェクトを作成
+                            end_date = datetime.fromtimestamp(current_period_end, tz=timezone.utc)
+                            user.subscription_end_date = end_date
+                            user.stripe_subscription_id = subscription.get("id") # 念のためIDも更新
+                            session.add(user)
+                            session.commit()
 
     # 支払失敗時のハンドリング
     elif event["type"] == "payment_intent.payment_failed":
