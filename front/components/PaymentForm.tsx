@@ -46,24 +46,18 @@ export const PaymentForm = ({ clientSecret }: PaymentFormProps) => {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
+    if (!stripe || !elements || !elements.getElement(CardNumberElement)) {
+      return;
+    }
+
     setIsLoading(true);
-
-    if (!stripe || !elements) {
-      setIsLoading(false);
-      return;
-    }
-
-    const cardNumberElement = elements.getElement(CardNumberElement);
-    if (!cardNumberElement) {
-      setIsLoading(false);
-      return;
-    }
 
     const { error, paymentIntent } = await stripe.confirmCardPayment(
       clientSecret,
       {
         payment_method: {
-          card: cardNumberElement,
+          card: elements.getElement(CardNumberElement)!,
           billing_details: {
             name: cardHolderName,
           },
@@ -127,7 +121,7 @@ export const PaymentForm = ({ clientSecret }: PaymentFormProps) => {
           className="w-full mt-6"
         >
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          支払う (¥500)
+          支払う
         </Button>
       </form>
     </div>

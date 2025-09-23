@@ -7,15 +7,25 @@ import axios from "axios";
 
 import { API_URL } from "@/constants/config";
 
+// APIからのレスポンスの型を定義
+type UserStatusResponse = {
+  status: "none" | "subscribed" | "lifetime";
+  subscription_end_date?: string;
+};
+
 // ユーザーのプレミアム状態を取得するAPI関数
 const fetchUserStatus = async (getToken: () => Promise<string | null>) => {
   const token = await getToken();
-  // 未ログイン時はデフォルトで非プレミアム状態とする
-  if (!token) return { is_premium: false };
+  if (!token) {
+    return { status: "none", subscription_end_date: undefined };
+  }
 
-  const { data } = await axios.get(`${API_URL}/api/user-status`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const { data } = await axios.get<UserStatusResponse>(
+    `${API_URL}/api/user-status`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
   return data;
 };
 
@@ -33,8 +43,12 @@ export const useUserStatus = () => {
   });
 
   return {
-    isPremium: data?.is_premium || false,
+    status: data?.status ?? "none",
+    subscriptionEndDate: data?.subscription_end_date
+      ? new Date(data.subscription_end_date)
+      : null,
     isLoading,
     error,
+    isPremium: data?.status === "lifetime" || data?.status === "subscribed",
   };
 };

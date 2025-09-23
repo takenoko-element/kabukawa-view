@@ -1,6 +1,7 @@
 # api/models.py
 from typing import List, Optional
 from sqlmodel import Field, Relationship, SQLModel
+from datetime import datetime
 
 # Usersテーブルのモデル
 class User(SQLModel, table=True):
@@ -9,6 +10,9 @@ class User(SQLModel, table=True):
     email: str
     is_premium: bool = Field(default=False)
     stripe_payment_intent_id: Optional[str] = Field(default=None, index=True)
+    stripe_customer_id: Optional[str] = Field(default=None, unique=True, index=True)
+    stripe_subscription_id: Optional[str] = Field(default=None, unique=True)
+    subscription_end_date: Optional[datetime] = Field(default=None)
 
     layouts: List["LayoutItem"] = Relationship(back_populates="user")
 

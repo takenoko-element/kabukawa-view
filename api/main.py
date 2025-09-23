@@ -5,13 +5,14 @@ from fastapi import FastAPI, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
-from typing import List, Dict
+from typing import List, Dict, Optional
 from pydantic import BaseModel
 import requests
 from jose import jwt, jwk
 from jose.exceptions import JWTError, ExpiredSignatureError, JWTClaimsError
 from svix.webhooks import Webhook, WebhookVerificationError
 from database import get_session
+from datetime import datetime, timezone
 
 from models import LayoutItem, Symbol, User
 
@@ -21,10 +22,23 @@ class UserWebhookPayload(BaseModel):
     type: str
 
 class UserStatus(BaseModel):
-    is_premium: bool
+    status: str # "none", "subscribed", "lifetime"
+    subscription_end_date: Optional[datetime] = None
 
 class PaymentIntentResponse(BaseModel):
     client_secret: str
+
+# フロントエンドから受け取るリクエストボディのモデル
+class PaymentRequest(BaseModel):
+    plan_id: str # "one_time" or "subscription"
+
+class PriceInfo(BaseModel):
+    id: str
+    amount: int
+
+class PricesResponse(BaseModel):
+    one_time: Optional[PriceInfo] = None
+    subscription: Optional[PriceInfo] = None
 
 app = FastAPI()
 
@@ -144,7 +158,12 @@ def read_root():
 # 現在のユーザーのプレミアム状態を返すエンドポイント
 @app.get("/api/user-status", response_model=UserStatus)
 def get_user_status(current_user: User = Depends(get_current_user)):
-    return UserStatus(is_premium=current_user.is_premium)
+    if current_user.is_premium:
+        return UserStatus(status="lifetime")
+    elif current_user.subscription_end_date and current_user.subscription_end_date > datetime.now(timezone.utc):
+        return UserStatus(status="subscribed", subscription_end_date=current_user.subscription_end_date)
+    else:
+        return UserStatus(status="none")
 
 # レイアウトを取得するエンドポイント
 @app.get("/api/layout", response_model=Dict[str, List[LayoutItem]])
@@ -277,8 +296,7 @@ async def handle_webhook(request: Request, session: Session = Depends(get_sessio
 
     return {"status": "success"}
 
-# Stripe Elements用のエンドポイント
-# Stripe Payment Intentを作成し、クライアントシークレットを返すエンドポイント
+# 買い切りプラン用のPayment Intentを作成するエンドポイント
 @app.post("/api/create-payment-intent", response_model=PaymentIntentResponse)
 async def create_payment_intent(
     session: Session = Depends(get_session),
@@ -286,7 +304,7 @@ async def create_payment_intent(
     idempotency_key: str = Header(None, alias="Idempotency-Key"),
 ):
     if current_user.is_premium:
-        raise HTTPException(status_code=400, detail="すでにプレミアム会員です。")
+        raise HTTPException(status_code=400, detail="すでに買い切りプランに登録済みです。")
 
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Idempotency-Keyヘッダーが必要です。")
@@ -307,13 +325,22 @@ async def create_payment_intent(
                 # Stripe側でIDが無効な場合は、新規作成処理に進む
                 pass
 
+        # Stripeダッシュボードで価格を変更可能
+        prices = stripe.Price.list(lookup_keys=["one_time_purchase"], expand=["data.product"])
+        if not prices.data:
+             raise HTTPException(status_code=500, detail="価格情報が見つかりません。")
+        price = prices.data[0]
+
         # 4. 既存の有効なPaymentIntentがない場合、新規に作成
         payment_intent = stripe.PaymentIntent.create(
-            amount=500,
+            amount=price.unit_amount,
             currency="jpy",
             automatic_payment_methods={"enabled": True},
             # metadataにuser_idをセットして、webhookでどのユーザーか識別できるようにする
-            metadata={"user_id": current_user.user_id},
+            metadata={
+                "user_id": current_user.user_id,
+                "plan_type": "one_time"
+            },
             idempotency_key=idempotency_key,
         )
 
@@ -322,9 +349,88 @@ async def create_payment_intent(
         session.add(current_user)
         session.commit()
 
+        # フロントエンドで支払い処理を行うためのclient_secretを返す
         return PaymentIntentResponse(client_secret=payment_intent.client_secret)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# サブスクリプション作成用のエンドポイント
+@app.post("/api/create-subscription", response_model=PaymentIntentResponse)
+async def create_subscription(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_for_update),
+):
+    if current_user.is_premium:
+        raise HTTPException(status_code=400, detail="すでに買い切りプランに登録済みです。")
+
+    try:
+        customer_id = current_user.stripe_customer_id
+        # Stripe顧客でなければ、新規に作成
+        if not customer_id:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                metadata={"user_id": current_user.user_id},
+            )
+            customer_id = customer.id
+            current_user.stripe_customer_id = customer_id
+            session.add(current_user)
+            session.commit()
+
+        # Stripeダッシュボードで価格を変更可能
+        prices = stripe.Price.list(lookup_keys=["subscription_monthly"], expand=["data.product"])
+        if not prices.data:
+             raise HTTPException(status_code=500, detail="価格情報が見つかりません。")
+        price = prices.data[0]
+
+        # サブスクリプションを作成
+        subscription = stripe.Subscription.create(
+            customer=customer_id,
+            items=[{"price": price.id}],
+            payment_behavior="default_incomplete",
+            payment_settings={"save_default_payment_method": "on_subscription"},
+            expand=["latest_invoice.confirmation_secret"],
+            metadata={
+                "user_id": current_user.user_id,
+                "plan_type": "subscription"
+            }
+        )
+
+        current_user.stripe_subscription_id = subscription.id
+        session.add(current_user)
+        session.commit()
+
+        payment_intent = subscription.latest_invoice.confirmation_secret
+
+        if not payment_intent or not payment_intent.client_secret:
+            raise HTTPException(status_code=500, detail="有効な支払い情報を取得できませんでした。")
+
+        # フロントエンドで支払い処理を行うためのclient_secretを返す
+        return PaymentIntentResponse(
+            client_secret=payment_intent.client_secret
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Stripeの価格情報を取得するエンドポイント
+@app.get("/api/prices", response_model=PricesResponse)
+def get_prices():
+    try:
+        # 複数のlookup_keyを一度に指定して価格を取得
+        prices = stripe.Price.list(
+            lookup_keys=["one_time_purchase", "subscription_monthly"],
+            active=True
+        )
+
+        response = PricesResponse()
+        for price in prices.data:
+            if price.lookup_key == "one_time_purchase":
+                response.one_time = PriceInfo(id=price.id, amount=price.unit_amount)
+            elif price.lookup_key == "subscription_monthly":
+                response.subscription = PriceInfo(id=price.id, amount=price.unit_amount)
+
+        return response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="価格情報の取得に失敗しました。")
 
 # Stripe Webhook用のエンドポイント
 @app.post("/api/stripe-webhooks")
@@ -350,21 +456,45 @@ async def stripe_webhook(
     event_data = event["data"]["object"]
 
     # イベントタイプに応じて処理を分岐
-    # payment_intent.succeeded イベントを処理
+    # 買い切りプランの支払いが成功したときの処理
     if event["type"] == "payment_intent.succeeded":
         # PaymentIntentからmetadataを取得
-        user_id = event_data.get("metadata", {}).get("user_id")
+        metadata = event_data.get("metadata", {})
 
-        if user_id:
-            user = session.exec(select(User).where(User.user_id == user_id)).first()
-            if user:
-                # プレミアム状態への更新とPaymentIntent IDのクリア
-                if not user.is_premium:
+        if metadata.get("plan_type") == "one_time":
+            user_id = metadata.get("user_id")
+            if user_id:
+                user = session.exec(
+                    select(User).where(User.user_id == user_id).with_for_update()
+                ).first()
+                if user and not user.is_premium:
+                    if user.stripe_subscription_id:
+                        try:
+                            stripe.Subscription.delete(user.stripe_subscription_id)
+                        except stripe.error.StripeError as e:
+                            print(f"Stripe subscription deletion failed: {e}")
+                            # 例外を発生させることで、FastAPIがDBへの変更をロールバックする
+                            raise HTTPException(status_code=500, detail="サブスクリプション契約の解除に失敗しました。")
+
                     user.is_premium = True
+                    user.stripe_payment_intent_id = None
+                    user.stripe_subscription_id = None
+                    user.subscription_end_date = None
+                    session.add(user)
+                    session.commit()
 
-                user.stripe_payment_intent_id = None
+    # サブスクリプションの支払いが成功したときの処理
+    elif event["type"] == "invoice.payment_succeeded":
+        subscription_id = event_data.get("subscription")
+        if subscription_id:
+            user = session.exec(select(User).where(User.stripe_subscription_id == subscription_id)).first()
+            if user:
+                # サブスクリプションの期間を更新
+                subscription = stripe.Subscription.retrieve(subscription_id)
+                user.subscription_end_date = datetime.fromtimestamp(subscription.current_period_end)
                 session.add(user)
                 session.commit()
+
     # 支払失敗時のハンドリング
     elif event["type"] == "payment_intent.payment_failed":
         user_id = event_data.get("metadata", {}).get("user_id")
