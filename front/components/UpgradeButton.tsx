@@ -16,7 +16,8 @@ const calculateRemainingDays = (endDate: Date | null): number => {
 };
 
 export const UpgradeButton = () => {
-  const { status, subscriptionEndDate, isLoading } = useUserStatus();
+  const { status, subscriptionEndDate, isLoading, cancelAtPeriodEnd } =
+    useUserStatus();
 
   if (isLoading) {
     return (
@@ -45,7 +46,13 @@ export const UpgradeButton = () => {
             <Crown className="mr-2 h-4 w-4 text-yellow-500" /> Pro{" "}
             <span className="text-xs ml-1">(Sub)</span>
           </div>
-          <div className="text-xs mt-0.5">残り {remainingDays} 日</div>
+          {cancelAtPeriodEnd ? (
+            <div className="text-xs mt-0.5 text-destructive-foreground">
+              解約予約済み
+            </div>
+          ) : (
+            <div className="text-xs mt-0.5">残り {remainingDays} 日</div>
+          )}
         </Link>
       </Button>
     );

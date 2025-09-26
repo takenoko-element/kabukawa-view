@@ -11,13 +11,18 @@ import { API_URL } from "@/constants/config";
 type UserStatusResponse = {
   status: "none" | "subscribed" | "lifetime";
   subscription_end_date?: string;
+  cancel_at_period_end?: boolean;
 };
 
 // ユーザーのプレミアム状態を取得するAPI関数
 const fetchUserStatus = async (getToken: () => Promise<string | null>) => {
   const token = await getToken();
   if (!token) {
-    return { status: "none", subscription_end_date: undefined };
+    return {
+      status: "none",
+      subscription_end_date: undefined,
+      cancel_at_period_end: false,
+    };
   }
 
   const { data } = await axios.get<UserStatusResponse>(
@@ -50,5 +55,6 @@ export const useUserStatus = () => {
     isLoading,
     error,
     isPremium: data?.status === "lifetime" || data?.status === "subscribed",
+    cancelAtPeriodEnd: data?.cancel_at_period_end ?? false,
   };
 };
