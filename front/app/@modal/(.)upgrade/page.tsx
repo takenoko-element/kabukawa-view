@@ -15,6 +15,8 @@ import { useUserStatus } from "@/hooks/useUserStatus";
 import { CheckoutWrapper } from "@/components/CheckoutWrapper";
 import { UpgradeView } from "@/components/UpgradeView";
 import { Plan } from "@/types";
+import { SubscribedView } from "@/components/SubscribedView";
+import { Button } from "@/components/ui/button";
 
 const InterceptedUpgradePage = () => {
   const { status, isLoading } = useUserStatus();
@@ -27,37 +29,75 @@ const InterceptedUpgradePage = () => {
     router.back();
   };
 
-  const handleProceed = (plan: Plan) => {
+  const handleProceedToPayment = (plan: Plan) => {
     setSelectedPlan(plan);
     setView("payment");
   };
+
+  // 表示するコンポーネントがカード型か、シンプルなダイアログかを判定
+  const isCardView = !isLoading && status !== "lifetime";
 
   return (
     <Dialog
       open={true}
       onOpenChange={(open) => {
-        // 閉じる操作（'x'ボタン、オーバーレイクリックなど）が行われたら
         if (!open) {
           handleClose();
         }
       }}
     >
-      <DialogContent className="p-0 border-0 bg-transparent shadow-none w-full max-w-md">
+      <DialogContent
+        className={
+          isCardView
+            ? "p-0 border-0 bg-transparent shadow-none w-full max-w-md"
+            : "w-full max-w-md"
+        }
+      >
         {isLoading && (
-          <div className="flex h-40 items-center justify-center">
-            <Loader2 className="mx-auto h-8 w-8 animate-spin text-white" />
-          </div>
+          <>
+            <DialogHeader>
+              <DialogTitle>読み込み中...</DialogTitle>
+            </DialogHeader>
+            <div className="flex h-40 items-center justify-center">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+            </div>
+          </>
         )}
+
+        {!isLoading && status === "lifetime" && (
+          <>
+            <DialogHeader>
+              <DialogTitle>Pro会員です</DialogTitle>
+            </DialogHeader>
+            <div className="p-6 pt-2 text-center">
+              <p>すでに買い切りプランにご登録済みです。</p>
+              <Button onClick={handleClose} className="mt-6 w-full">
+                閉じる
+              </Button>
+            </div>
+          </>
+        )}
+
         {!isLoading && status !== "lifetime" && (
           <>
-            {view === "benefits" && (
-              <DialogHeader>
-                <DialogTitle>
-                  <UpgradeView onProceed={handleProceed} />
-                </DialogTitle>
-              </DialogHeader>
+            <DialogTitle className="sr-only">
+              {view === "payment"
+                ? "お支払い"
+                : status === "subscribed"
+                ? "プラン管理"
+                : "アップグレード"}
+            </DialogTitle>
+
+            {view === "payment" ? (
+              <CheckoutWrapper plan={selectedPlan} />
+            ) : status === "subscribed" ? (
+              <SubscribedView
+                onUpgradeToOneTime={() => handleProceedToPayment("one_time")}
+              />
+            ) : (
+              // status === 'none'
+              <UpgradeView onProceed={handleProceedToPayment} />
             )}
-            {view === "payment" && <CheckoutWrapper plan={selectedPlan} />}
           </>
         )}
       </DialogContent>

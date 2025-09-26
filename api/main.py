@@ -1,6 +1,7 @@
 # api/main.py
 import os
 import stripe
+import logging
 from fastapi import FastAPI, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
@@ -16,6 +17,10 @@ from datetime import datetime, timezone
 
 from models import LayoutItem, Symbol, User
 
+# --- ロガーのセットアップ ---
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 class UserWebhookPayload(BaseModel):
     data: dict
     object: str
@@ -24,6 +29,7 @@ class UserWebhookPayload(BaseModel):
 class UserStatus(BaseModel):
     status: str # "none", "subscribed", "lifetime"
     subscription_end_date: Optional[datetime] = None
+    cancel_at_period_end: bool = False
 
 class PaymentIntentResponse(BaseModel):
     client_secret: str
@@ -161,7 +167,23 @@ def get_user_status(current_user: User = Depends(get_current_user)):
     if current_user.is_premium:
         return UserStatus(status="lifetime")
     elif current_user.subscription_end_date and current_user.subscription_end_date > datetime.now(timezone.utc):
-        return UserStatus(status="subscribed", subscription_end_date=current_user.subscription_end_date)
+        # サブスクリプションが有効な場合
+        cancel_at_period_end = False
+        if current_user.stripe_subscription_id:
+            try:
+                # Stripeから最新のサブスクリプション情報を取得
+                subscription = stripe.Subscription.retrieve(current_user.stripe_subscription_id)
+                logger.info(f"サブスク状態: {subscription.status}, cancel_at_period_end={subscription.cancel_at_period_end}, cancel_at={subscription.cancel_at}, ended_at={subscription.ended_at}")
+                cancel_at_period_end = subscription.cancel_at_period_end
+            except stripe.error.StripeError as e:
+                # Stripe APIエラーが発生しても、とりあえず処理は続行
+                logger.error(f"Stripe サブスクリプション情報の取得に失敗しました: {e}", exc_info=True)
+
+        return UserStatus(
+            status="subscribed",
+            subscription_end_date=current_user.subscription_end_date,
+            cancel_at_period_end=cancel_at_period_end
+        )
     else:
         return UserStatus(status="none")
 
@@ -303,6 +325,7 @@ async def create_payment_intent(
     current_user: User = Depends(get_current_user_for_update),
     idempotency_key: str = Header(None, alias="Idempotency-Key"),
 ):
+    logger.info(f"create_payment_intent: 処理開始 (user_id: {current_user.user_id})")
     if current_user.is_premium:
         raise HTTPException(status_code=400, detail="すでに買い切りプランに登録済みです。")
 
@@ -310,6 +333,17 @@ async def create_payment_intent(
         raise HTTPException(status_code=400, detail="Idempotency-Keyヘッダーが必要です。")
 
     try:
+        # 顧客IDが存在しない場合は、Stripeで新規に作成する
+        customer_id = current_user.stripe_customer_id
+        if not customer_id:
+            customer = stripe.Customer.create(
+                email=current_user.email,
+                metadata={"user_id": current_user.user_id},
+            )
+            customer_id = customer.id
+            current_user.stripe_customer_id = customer_id
+            session.add(current_user)
+
         # ----- 高冪等性確保のための処理 ＆ 支払いインテントの作成 -----
         # 1. DBに保存されたPaymentIntent IDがあるか確認
         if current_user.stripe_payment_intent_id:
@@ -333,6 +367,7 @@ async def create_payment_intent(
 
         # 4. 既存の有効なPaymentIntentがない場合、新規に作成
         payment_intent = stripe.PaymentIntent.create(
+            customer=customer_id,
             amount=price.unit_amount,
             currency="jpy",
             automatic_payment_methods={"enabled": True},
@@ -348,10 +383,13 @@ async def create_payment_intent(
         current_user.stripe_payment_intent_id = payment_intent.id
         session.add(current_user)
         session.commit()
+        logger.info(f"PaymentIntentの作成とDB保存に成功しました (pi_id: {payment_intent.id})")
 
         # フロントエンドで支払い処理を行うためのclient_secretを返す
         return PaymentIntentResponse(client_secret=payment_intent.client_secret)
     except Exception as e:
+        logger.error(f"create_payment_intentで予期せぬエラー: {e}", exc_info=True)
+        session.rollback()
         raise HTTPException(status_code=500, detail=str(e))
 
 # サブスクリプション作成用のエンドポイント
@@ -409,6 +447,33 @@ async def create_subscription(
             client_secret=payment_intent.client_secret
         )
     except Exception as e:
+        session.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# サブスクリプションをキャンセルするエンドポイント
+@app.post("/api/cancel-subscription")
+async def cancel_subscription(
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user_for_update),
+):
+    if not current_user.stripe_subscription_id:
+        raise HTTPException(status_code=400, detail="アクティブなサブスクリプションがありません。")
+
+    try:
+        # Stripeでサブスクリプションを即時削除するのではなく、
+        # cancel_at_period_endフラグを立てて、期間終了時に解約されるようにスケジュールする
+        stripe.Subscription.modify(
+            current_user.stripe_subscription_id,
+            cancel_at_period_end=True,
+        )
+        # DBからは何も削除しない（Webhookで期間終了時に同期される）
+        session.commit()
+        return {"message": "サブスクリプションの解約を予約しました。"}
+    except stripe.error.StripeError as e:
+        # Stripe APIエラーのハンドリング
+        raise HTTPException(status_code=500, detail=f"Stripe APIエラー: {e}")
+    except Exception as e:
+        # その他の予期せぬエラー
         raise HTTPException(status_code=500, detail=str(e))
 
 # Stripeの価格情報を取得するエンドポイント
@@ -454,13 +519,13 @@ async def stripe_webhook(
         raise HTTPException(status_code=400, detail=f"Invalid signature: {e}")
 
     event_data = event["data"]["object"]
+    event_type = event["type"]
+    logger.info(f"Stripe Webhook受信: {event_type}")
 
-    # イベントタイプに応じて処理を分岐
-    # 買い切りプランの支払いが成功したときの処理
-    if event["type"] == "payment_intent.succeeded":
+    # --- 買い切りプランの支払いが成功したときの処理 ---
+    if event_type == "payment_intent.succeeded":
         # PaymentIntentからmetadataを取得
         metadata = event_data.get("metadata", {})
-
         if metadata.get("plan_type") == "one_time":
             user_id = metadata.get("user_id")
             if user_id:
@@ -468,51 +533,74 @@ async def stripe_webhook(
                     select(User).where(User.user_id == user_id).with_for_update()
                 ).first()
                 if user and not user.is_premium:
+                    # 既存のサブスクリプションがある場合、期間終了時にキャンセルされるように予約する
                     if user.stripe_subscription_id:
                         try:
-                            stripe.Subscription.delete(user.stripe_subscription_id)
+                            stripe.Subscription.modify(
+                                user.stripe_subscription_id,
+                                cancel_at_period_end=True,
+                            )
                         except stripe.error.StripeError as e:
-                            print(f"Stripe subscription deletion failed: {e}")
-                            # 例外を発生させることで、FastAPIがDBへの変更をロールバックする
-                            raise HTTPException(status_code=500, detail="サブスクリプション契約の解除に失敗しました。")
+                            # Stripe APIの呼び出しに失敗した場合、
+                            # 500エラーを返してStripeにWebhookの再試行を促す。
+                            # FastAPIの依存関係システムにより、DBへの変更は自動的にロールバックされる。
+                            logger.error(f"Webhook: 既存サブスクの解約予約に失敗 (sub_id: {user.stripe_subscription_id}): {e}", exc_info=True)
+                            raise HTTPException(status_code=500, detail="サブスクリプション契約の更新に失敗しました。")
 
                     user.is_premium = True
                     user.stripe_payment_intent_id = None
-                    user.stripe_subscription_id = None
-                    user.subscription_end_date = None
                     session.add(user)
                     session.commit()
+                    logger.info(f"Webhook: 買い切りプランを有効化しました (user_id: {user.user_id})")
 
-    # サブスクリプションの作成・更新・キャンセルを処理
-    elif event["type"] in ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"]:
+    # --- サブスクリプションの状態が変更されたときの処理 ---
+    elif event_type in ["customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted"]:
         subscription = event_data
         customer_id = subscription.get("customer")
 
-        if customer_id:
-            user = session.exec(select(User).where(User.stripe_customer_id == customer_id)).first()
-            if user:
-                if event["type"] == "customer.subscription.deleted":
-                    # サブスクがキャンセルされたら日付をクリア
-                    user.subscription_end_date = None
-                    session.add(user)
-                    session.commit()
-                # 'active' または 'trialing' の場合、有効期限を更新
-                elif subscription.get("status") in ["active", "trialing"]:
-                    # サブスクリプションアイテムのリストから期間を取得
-                    subscription_items = subscription.get("items", {}).get("data", [])
-                    if subscription_items:
-                        # 通常はアイテムは1つなので、最初のアイテムの期間を取得
-                        current_period_end = subscription_items[0].get("current_period_end")
-                        if current_period_end:
-                            # タイムゾーンをUTCに指定してdatetimeオブジェクトを作成
-                            end_date = datetime.fromtimestamp(current_period_end, tz=timezone.utc)
-                            user.subscription_end_date = end_date
-                            user.stripe_subscription_id = subscription.get("id") # 念のためIDも更新
-                            session.add(user)
-                            session.commit()
+        if not customer_id:
+            return {"status": "success", "detail": "No customer ID in event"}
 
-    # 支払失敗時のハンドリング
-    elif event["type"] == "payment_intent.payment_failed":
+        user = session.exec(
+            select(User).where(User.stripe_customer_id == customer_id).with_for_update()
+        ).first()
+
+        if not user:
+            return {"status": "success", "detail": f"User with customer ID {customer_id} not found"}
+
+        subscription_status = subscription.get("status")
+        subscription_id = subscription.get("id")
+
+        if event_type == "customer.subscription.deleted":
+            # 期間が終了し、サブスクリプションが完全に削除された場合
+            # 念のため、現在DBに保存されているIDと比較する
+            if user.stripe_subscription_id == subscription_id:
+                user.subscription_end_date = None
+                user.stripe_subscription_id = None
+        else: # created or updated
+            # ステータスが有効（支払い済み or トライアル中）の場合
+            if subscription_status in ["active", "trialing"]:
+                # サブスクリプションアイテムのリストから期間を取得
+                subscription_items = subscription.get("items", {}).get("data", [])
+                if subscription_items:
+                    # 通常はアイテムは1つなので、最初のアイテムの期間を取得
+                    current_period_end = subscription_items[0].get("current_period_end")
+                    if current_period_end:
+                        # タイムゾーンをUTCに指定してdatetimeオブジェクトを作成
+                        end_date = datetime.fromtimestamp(current_period_end, tz=timezone.utc)
+                        user.subscription_end_date = end_date
+                        user.stripe_subscription_id = subscription_id
+            # ステータスが無効（支払い失敗、キャンセル済みなど）になった場合
+            else:
+                user.subscription_end_date = None
+                user.stripe_subscription_id = None
+
+        session.add(user)
+        session.commit()
+        logger.info(f"Webhook: サブスクリプション状態を更新しました (user_id: {user.user_id}, status: {subscription_status})")
+
+    # --- 支払失敗時のハンドリング ---
+    elif event_type == "payment_intent.payment_failed":
         user_id = event_data.get("metadata", {}).get("user_id")
         if user_id:
             user = session.exec(select(User).where(User.user_id == user_id)).first()
