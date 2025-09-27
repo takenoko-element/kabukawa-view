@@ -24,8 +24,6 @@ type Props = {
 
 export const CheckoutWrapper = ({ plan }: Props) => {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  // 冪等性キー
-  const [idempotencyKey] = useState(() => uuidv4());
   const { getToken } = useAuth();
   const effectRan = useRef(false);
 
@@ -34,9 +32,15 @@ export const CheckoutWrapper = ({ plan }: Props) => {
       return;
     }
 
+    setClientSecret(null);
+    // 冪等性キー
+    const idempotencyKey = uuidv4();
+
     const createPaymentIntent = async () => {
       try {
         const token = await getToken();
+        if (!token) return;
+
         let response;
         if (plan === "subscription") {
           response = await axios.post(

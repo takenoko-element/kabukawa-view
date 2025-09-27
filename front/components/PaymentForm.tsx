@@ -70,7 +70,7 @@ export const PaymentForm = ({ clientSecret }: PaymentFormProps) => {
       setIsLoading(false);
     } else if (paymentIntent && paymentIntent.status === "succeeded") {
       toast.success("アップグレードが完了しました！");
-      router.push("/upgrade/success");
+      router.push("/upgrade/success?fromPayment=true");
     }
   };
 

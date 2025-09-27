@@ -1,7 +1,7 @@
 // front/app/@modal/(.)upgrade/success/page.tsx
 "use client";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -17,6 +17,7 @@ const InterceptedSuccessPage = () => {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(true);
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     // ユーザー情報を再取得してヘッダーの表示などを更新
@@ -35,6 +36,10 @@ const InterceptedSuccessPage = () => {
       }, 150);
     }
   }, [isOpen, router]);
+
+  if (searchParams.get("fromPayment") !== "true") {
+    return;
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
