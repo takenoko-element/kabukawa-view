@@ -1,6 +1,6 @@
 // front/hooks/useLayout.ts
 // hooks/useLayout.ts
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
 import { Layout, Layouts as ReactGridLayouts } from "react-grid-layout";
@@ -19,6 +19,7 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
   const queryClient = useQueryClient();
   const [layouts, setLayouts] = useState<Layouts>({});
   const { getToken } = useAuth();
+  const isInitialLoad = useRef(true);
 
   // --- API通信の関数 ---
   const fetchLayout = async (): Promise<LayoutData> => {
@@ -51,15 +52,40 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
 
   const mutation = useMutation({
     mutationFn: saveLayoutApi,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["layouts"] });
-      toast.success("レイアウトを保存しました");
+    onSuccess: (_, savedLayouts) => {
+      queryClient.setQueryData(["layouts"], savedLayouts);
+      // toast.success("レイアウトを自動保存しました");
     },
     onError: (error) => {
       console.error("Layout save failed:", error);
-      toast.error("レイアウトの保存に失敗しました");
+      toast.error("レイアウトの自動保存に失敗しました");
     },
   });
+
+  // --- レイアウト自動保存 ---
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+
+    // 初回読み込み時は、保存処理をスキップする
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      return;
+    }
+
+    // ユーザー操作終了後1.5秒のデバウンスを設定
+    const handler = setTimeout(() => {
+      mutation.mutate(layouts);
+    }, 1500);
+
+    // クリーンアップ関数
+    return () => {
+      clearTimeout(handler);
+      isInitialLoad.current = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layouts]);
 
   const items = useMemo(() => layouts.lg || [], [layouts]);
   const addedSymbols = useMemo(() => items.map((item) => item.symbol), [items]);
@@ -126,9 +152,10 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
     []
   );
 
-  const saveLayout = () => {
-    mutation.mutate(layouts);
-  };
+  // 手動レイアウト保存実装時に必要
+  // const saveLayout = () => {
+  //   mutation.mutate(layouts);
+  // };
 
   const addMultipleCharts = (symbols: Symbol[]) => {
     const symbolsToAdd = symbols.filter(
@@ -191,7 +218,8 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
     isLoading,
     addedSymbols,
     handleLayoutChange,
-    saveLayout,
+    // 手動レイアウト保存実装時に必要
+    // saveLayout,
     addMultipleCharts,
     removeChart,
   };
