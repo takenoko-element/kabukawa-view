@@ -82,7 +82,6 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
     // クリーンアップ関数
     return () => {
       clearTimeout(handler);
-      isInitialLoad.current = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layouts]);
