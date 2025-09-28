@@ -41,7 +41,8 @@ const Dashboard = () => {
     isLoading,
     addedSymbols,
     handleLayoutChange,
-    saveLayout,
+    // 手動レイアウト保存実装時に必要
+    // saveLayout,
     addMultipleCharts,
     removeChart,
   } = useLayout(defaultChartSizes);
@@ -85,7 +86,8 @@ const Dashboard = () => {
         setChartType={setChartType}
         openSettingsModal={openSettingsModal}
         openSearchModal={openSearchModal}
-        saveLayout={saveLayout}
+        // 手動レイアウト保存実装時に必要
+        // saveLayout={saveLayout}
       />
 
       <div className="flex-grow relative">

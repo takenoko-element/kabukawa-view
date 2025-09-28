@@ -23,7 +23,8 @@ type Props = {
   setChartType: (type: ChartType) => void;
   openSettingsModal: () => void;
   openSearchModal: () => void;
-  saveLayout: () => void;
+  // 手動レイアウト保存実装時に必要
+  // saveLayout: () => void;
 };
 
 const iconMap: Record<ChartType, React.ElementType> = {
@@ -40,8 +41,8 @@ const DashboardHeader = ({
   setChartType,
   openSettingsModal,
   openSearchModal,
-  saveLayout,
-}: Props) => {
+}: // saveLayout,
+Props) => {
   return (
     <div
       className={`transition-all duration-300 ease-in-out shrink-0 ${
@@ -58,13 +59,6 @@ const DashboardHeader = ({
           <div className="flex items-center gap-4">
             <SignedIn>
               <UpgradeButton />
-              <Button
-                onClick={saveLayout}
-                variant="outline"
-                className="transition-all duration-200"
-              >
-                レイアウト保存
-              </Button>
             </SignedIn>
             <ThemeToggleButton />
             <SignedIn>
