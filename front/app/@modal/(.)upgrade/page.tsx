@@ -52,6 +52,11 @@ const InterceptedUpgradePage = () => {
             ? "p-0 border-0 bg-transparent shadow-none w-full max-w-md"
             : "w-full max-w-md"
         }
+        onPointerDownOutside={(e) => {
+          if (view === "payment") {
+            e.preventDefault();
+          }
+        }}
       >
         {isLoading && (
           <>
