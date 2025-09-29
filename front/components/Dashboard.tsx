@@ -1,8 +1,9 @@
 // front/app/components/Dashboard.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
+import { Loader2 } from "lucide-react";
 
 import { AllChartSettings, Symbol } from "@/types";
 import { ChartSettingsModal } from "./ChartSettingsModal";
@@ -21,6 +22,7 @@ const Dashboard = () => {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const scriptStatus = useTradingViewScript();
   const { isPremium } = useUserStatus();
+  const [showSlowLoadMessage, setShowSlowLoadMessage] = useState(false);
 
   const {
     chartSettings,
@@ -65,13 +67,41 @@ const Dashboard = () => {
     addMultipleCharts(symbols);
   };
 
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (isLoading) {
+      timer = setTimeout(() => {
+        // 5秒経ってもローディング中ならメッセージを表示する
+        setShowSlowLoadMessage(true);
+      }, 5000);
+    }
+
+    // ローディングが完了するか、コンポーネントが破棄された場合はタイマーを解除
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isLoading]);
+
   // レイアウト読み込みとスクリプト読み込みの両方が完了するまでローディング表示
   if (isLoading || scriptStatus !== "ready") {
+    // 状態に応じて表示するメッセージを切り替え
+    const message = isLoading
+      ? "レイアウトを読み込んでいます..."
+      : "チャートライブラリを準備しています...";
+
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-center p-10">
-          {isLoading ? "Loading Layout..." : "Loading Chart Library..."}
-        </p>
+      <div className="flex h-screen flex-col items-center justify-center gap-4 bg-background">
+        <div className="flex items-center gap-3 text-lg text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p>{message}</p>
+        </div>
+        {/* 3秒以上経過した場合にのみ、追加のメッセージを表示 */}
+        {showSlowLoadMessage && (
+          <div className="animate-fade-in text-center text-sm text-muted-foreground">
+            <p>初回起動時や長時間の無操作後は、</p>
+            <p>サーバーの起動に時間がかかる場合があります（1分程度）</p>
+          </div>
+        )}
       </div>
     );
   }
