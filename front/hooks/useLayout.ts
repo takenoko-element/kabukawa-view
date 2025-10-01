@@ -18,12 +18,15 @@ type LayoutData = Layouts;
 export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
   const queryClient = useQueryClient();
   const [layouts, setLayouts] = useState<Layouts>({});
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const isInitialLoad = useRef(true);
 
   // --- API通信の関数 ---
   const fetchLayout = async (): Promise<LayoutData> => {
     const token = await getToken();
+    if (!token) {
+      return {};
+    }
     const { data } = await axios.get(`${API_URL}/api/layout`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -33,6 +36,7 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
 
   const saveLayoutApi = async (layouts: LayoutData): Promise<void> => {
     const token = await getToken();
+    if (!token) return;
     await axios.post(`${API_URL}/api/layout`, layouts, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -41,7 +45,7 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
   const { data: initialLayouts, isLoading } = useQuery({
     queryKey: ["layouts"],
     queryFn: fetchLayout,
-    // enabled: !!getToken(),
+    enabled: !!isSignedIn,
   });
 
   useEffect(() => {
@@ -64,7 +68,7 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
 
   // --- レイアウト自動保存 ---
   useEffect(() => {
-    if (isLoading) {
+    if (!isSignedIn || isLoading) {
       return;
     }
 
