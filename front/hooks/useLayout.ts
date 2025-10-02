@@ -54,6 +54,13 @@ export const useLayout = (defaultChartSizes: DefaultChartSizes) => {
     }
   }, [initialLayouts]);
 
+  useEffect(() => {
+    if (!isSignedIn) {
+      setLayouts({});
+      isInitialLoad.current = true;
+    }
+  }, [isSignedIn]);
+
   const mutation = useMutation({
     mutationFn: saveLayoutApi,
     onSuccess: (_, savedLayouts) => {
